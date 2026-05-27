@@ -176,3 +176,50 @@ MIT License — see LICENSE file.
 
 Research project. In development for international residencies.  
 Open to collaborations with ensembles and music research centres.
+
+---
+
+## Using a custom corpus
+
+Remnant is not tied to ConTimbre. Any sound corpus can be used as long as the acoustic descriptors are available in the expected TSV format.
+
+### TSV format
+
+The file `contimbre_full.tsv` must be a tab-separated file with the following columns:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | string | Unique sound identifier (e.g. `violin.arco.ff.A4`) |
+| `instrument` | string | Instrument name |
+| `family` | string | Instrument family (e.g. `strings`, `woodwinds`) |
+| `pitch` | float | MIDI pitch (or -1000 if unpitched) |
+| `dynamic` | string | Dynamic marking (`ppp`, `pp`, `p`, `mp`, `mf`, `f`, `ff`, `fff`) |
+| `spectral_complexity` | float | Spectral complexity / flux |
+| `spectral_center` | float | Spectral centroid (Hz) |
+| `duration` | float | Duration in seconds |
+| `absolute_intensity` | float | RMS or loudness value |
+
+### Extracting descriptors with FluCoMa (SuperCollider)
+
+```supercollider
+// Example: extract descriptors from a folder of audio files
+~files = PathName("/path/to/samples/").files;
+~buf  = Buffer.read(s, ~files[0].fullPath);
+
+FluidBufSpectralShape.process(s, ~buf, features: ~shape);
+FluidBufPitch.process(s, ~buf, features: ~pitch);
+FluidBufLoudness.process(s, ~buf, features: ~loud);
+```
+
+Then export to TSV with the column names above. The `id` field is used as the sound reference throughout the system — it should match the filename or a unique key in your sample player.
+
+### Minimal example
+
+```
+id	instrument	family	pitch	dynamic	spectral_complexity	spectral_center	duration	absolute_intensity
+rain.light	rain	field	-1000	pp	0.82	1200.4	3.2	0.12
+rain.heavy	rain	field	-1000	ff	0.95	2400.1	4.1	0.71
+wind.low	wind	field	-1000	p	0.61	800.2	5.0	0.08
+```
+
+After creating the TSV, run `umap_full.py` to recompute the timbral space. The rest of the system works identically.
