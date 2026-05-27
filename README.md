@@ -2,7 +2,9 @@
 
 **Sonic traces of a non-human world**
 
-A multichannel acousmatic compositional and performance system that navigates timbral space through Brownian motion. In concert, the electronics listen to the orchestra in real time, transforming its signal according to temporal directions that shape tension and release as narrative forces within sound.
+A multichannel acousmatic compositional and performance system that navigates orchestral timbral space through Brownian motion. In concert, the electronics listen to the orchestra in real time, transforming its signal according to temporal directions that shape tension and release as narrative forces within sound.
+
+Through electroacoustic processing, sounds are detached from their recognisable source and relocated within an artificial sonic environment: a space that does not document but hypothesises.
 
 The project emerges from a biocentric perspective on the Anthropocene: instrumental sounds as traces of a world that continues to exist independently of human presence.
 
@@ -17,7 +19,7 @@ contimbre_full.tsv
     ↓  umap_full.py  (McAdams perceptual weights)
 umap_full_coords.csv
     ↓  contimbre_explorer.py  (Dash)
-        ├─ Instrument filter + local UMAP recomputation
+        ├─ Instrument family filter + local UMAP recomputation
         ├─ Multi-field Brownian motion
         ├─ Interactive graphic score
         ├─ Export .cOrc / .cePlayerOrc  (SBCL)
@@ -57,6 +59,7 @@ This writes `/tmp/contimbre_full.tsv`.
 
 ### 2. Compute UMAP coordinates
 ```bash
+cd ~/Desktop/remnant
 python3 umap_full.py
 ```
 This generates `umap_full_coords.csv` in the project folder.
@@ -104,9 +107,21 @@ The system integrates four analytical layers:
 | Timbral space | McAdams perceptual weights | UMAP with weighted features |
 | Temporal directions | Thoresen Dynamic Forms (Aural Sonology ch. 8) | Brownian attractor per direction |
 | Timbral tension | Lerdahl timbral hierarchy | Tension profile + distance threshold |
-| Pulse grid | Proportional notation | Brownian inter-step distances → binary fractions |
+| Pulse grid | Proportional notation | Brownian inter-step distances → binary rational fractions, serving as compositional reference for symbolic notation development. Each cell carries a local BPM derived from the nearest canonical metronome value — a tempo-map where every section has its own implicit speed, directly traceable to the geometry of the Brownian path |
 
 Full theoretical notes: `remnant_note_teoriche.docx`
+
+---
+
+## Graphic score
+
+Each field is visualised on an azimuthal axis (0–360°, mapped to 8-channel panning). The score displays:
+
+- **Sound bars** — duration and onset of each event, clipped to field boundaries
+- **Accent symbols** — release point ▲, goal point ●, termination ▼, warning point ◇ (Aural Sonology notation)
+- **Pulse grid** — Brownian inter-step distances expressed as binary rational fractions, with local BPM per cell. The grid serves as a compositional reference for developing the musical gesture in symbolic notation
+- **Red vertical lines** — pulse grid divisions crossing the full azimuthal range
+- **Two tension curves** — compositional profile (from Dynamic Form) and Brownian envelope (inverse of step duration). Where they converge the field is coherent; where they diverge, intention and stochastic geometry pull in opposite directions
 
 ---
 
@@ -137,20 +152,20 @@ All messages sent to `127.0.0.1:57121`.
 
 ```
 remnant/
-├── contimbre_explorer.py     # Main Dash application
-├── umap_full.py              # UMAP pipeline (McAdams weights)
-├── plot_brownian.py          # Matplotlib Brownian path plot
-├── export_tsv.lisp           # ConTimbre corpus extraction via SBCL
-├── remnant_sc.scd            # SuperCollider — synths + OSC + spatialiser
-├── remnant_flucos.scd        # SuperCollider — FluCoMa real-time analysis
+├── contimbre_explorer.py      # Main Dash application
+├── umap_full.py               # UMAP pipeline (McAdams weights)
+├── plot_brownian.py           # Matplotlib Brownian path plot
+├── export_tsv.lisp            # ConTimbre corpus extraction via SBCL
+├── remnant_sc.scd             # SuperCollider — synths + OSC + spatialiser
+├── remnant_flucos.scd         # SuperCollider — FluCoMa real-time analysis
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
-├── remnant_guida.docx        # Technical guide (IT)
+├── remnant_guida.docx         # Technical guide (IT)
 ├── remnant_note_teoriche.docx # Theoretical notes (IT/EN)
 └── scores/
-    ├── umap_full_coords.csv  # (generated — not versioned)
-    └── modes_cache.json      # (generated — not versioned)
+    ├── umap_full_coords.csv   # (generated — not versioned)
+    └── modes_cache.json       # (generated — not versioned)
 ```
 
 ---
