@@ -288,7 +288,7 @@ def _slider_block(label, sid, min_val, max_val, step, value):
     return html.Div([
         html.Div([
             html.Span(label, style={"fontFamily": "monospace", "fontSize": "11px", "color": "#555"}),
-            html.Span(id=f"{sid}-slider-display", children=str(value),
+            html.Span(id=f"{sid}-display", children=str(value),
                       style={"fontFamily": "monospace", "fontSize": "11px", "color": "#111", "fontWeight": "bold"}),
         ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "6px"}),
         dcc.Slider(id=sid, min=min_val, max=max_val, step=step, value=value,
@@ -1075,19 +1075,33 @@ for fam in ALL_FAMILIES:
     _make_sync(_instr_id, _instruments)
 
 
-for sid in ["duration", "gestures", "steps", "volatility", "drift-noise", "threshold", "attraction"]:
-    @app.callback(
-        Output(f"{sid}-slider-display", "children"),
-        Input(f"{sid}-slider", "value"),
-    )
-    def _upd(val):
-        return str(val)
+@app.callback(Output("duration-slider-display",   "children"), Input("duration-slider",   "value"))
+def _upd_duration(val):   return str(val)
+
+@app.callback(Output("gestures-slider-display",   "children"), Input("gestures-slider",   "value"))
+def _upd_gestures(val):   return str(val)
+
+@app.callback(Output("steps-slider-display",      "children"), Input("steps-slider",      "value"))
+def _upd_steps(val):      return str(val)
+
+@app.callback(Output("volatility-slider-display", "children"), Input("volatility-slider", "value"))
+def _upd_volatility(val): return str(val)
+
+@app.callback(Output("drift-noise-slider-display","children"), Input("drift-noise-slider","value"))
+def _upd_drift(val):      return str(val)
+
+@app.callback(Output("threshold-slider-display",  "children"), Input("threshold-slider",  "value"))
+def _upd_threshold(val):  return str(val)
+
+@app.callback(Output("attraction-slider-display", "children"), Input("attraction-slider", "value"))
+def _upd_attraction(val): return str(val)
 
 
 # Apply filter → recompute UMAP → update df-store
 @app.callback(
     Output("df-store",      "data"),
     Output("filter-status", "children"),
+    Output("umap-graph",    "figure", allow_duplicate=True),
     Input("filter-btn",     "n_clicks"),
     [State(iid, "value") for iid in instr_filter_ids],
     prevent_initial_call=True,
@@ -1100,7 +1114,7 @@ def apply_filter(n_clicks, *instr_values):
             selected.extend(vals)
 
     if not selected:
-        return None, "Select at least one instrument."
+        return None, "Select at least one instrument.", go.Figure()
 
     # Se il TSV originale esiste, usa colonne ricche per UMAP
     if os.path.exists(UMAP_ORIG_PATH):
@@ -1122,7 +1136,7 @@ def apply_filter(n_clicks, *instr_values):
         features = ["x", "y"]
 
     if len(df_sub) < 10:
-        return None, f"Too few sounds ({len(df_sub)}). Seleziona più strumenti."
+        return None, f"Too few sounds ({len(df_sub)}). Select more instruments.", go.Figure()
 
     # Ricalcola UMAP
     X = df_sub[[c for c in features if c in df_sub.columns]].fillna(0).values
@@ -1135,30 +1149,18 @@ def apply_filter(n_clicks, *instr_values):
 
     n_instr = df_sub["instrument"].nunique()
     status = f"✓ {len(df_sub)} sounds · {n_instr} instruments"
-    return df_sub[["id", "instrument", "family", "x", "y"]].to_dict("records"), status
-
-
-# Update UMAP map when df-store changes (after Apply filter)
-@app.callback(
-    Output("umap-graph", "figure", allow_duplicate=True),
-    Input("df-store", "data"),
-    prevent_initial_call=True,
-)
-def update_umap_on_filter(df_store):
-    if not df_store:
-        raise dash.exceptions.PreventUpdate
-    df_active = pd.DataFrame(df_store)
-    fig = go.Figure()
-    for fam, grp in df_active.groupby("family"):
-        col = FAMILY_COLORS.get(fam, "#ccc")
-        fig.add_trace(go.Scattergl(
-            x=grp["x"], y=grp["y"], mode="markers",
-            marker=dict(size=5, color=col, opacity=0.4),
-            name=fam, text=grp["id"],
+    df_out = df_sub[["id", "instrument", "family", "x", "y"]]
+    _fig = go.Figure()
+    for _fam, _grp in df_out.groupby("family"):
+        _col = FAMILY_COLORS.get(_fam, "#ccc")
+        _fig.add_trace(go.Scattergl(
+            x=_grp["x"], y=_grp["y"], mode="markers",
+            marker=dict(size=5, color=_col, opacity=0.4),
+            name=_fam, text=_grp["id"],
             hovertemplate="<b>%{text}</b><extra></extra>",
-            legendgroup=fam,
+            legendgroup=_fam,
         ))
-    fig.update_layout(
+    _fig.update_layout(
         paper_bgcolor="#fafafa", plot_bgcolor="#fafafa",
         font=dict(family="Courier New", size=10, color="#555"),
         margin=dict(l=20, r=20, t=20, b=20),
@@ -1167,7 +1169,8 @@ def update_umap_on_filter(df_store):
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         hovermode="closest",
     )
-    return fig
+    return df_out.to_dict("records"), status, _fig
+
 
 
 # ── Routing ─────────────────────────────────────────────────────────────────
