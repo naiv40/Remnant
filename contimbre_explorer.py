@@ -1406,46 +1406,33 @@ def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_no
         left_pct  = g["t_start"] / duration * 100
         width_pct = (g["t_end"] - g["t_start"]) / duration * 100
         timeline_items.append(
-            html.Div([
-                html.Button(
-                    [
-                        html.Span(str(g["index"] + 1),
-                                  style={"fontSize": "10px", "fontWeight": "bold",
-                                         "display": "block"}),
-                        html.Span(DIR_ABBREV.get(direction, direction[:5]),
-                                  style={"fontSize": "7px", "opacity": "0.85",
-                                         "display": "block", "letterSpacing": "0.5px"}),
-                    ],
-                    id={"type": "osc-btn", "index": g["index"]},
-                    n_clicks=0,
-                    title=f"G{g['index']+1} · {direction} · t={tension:.2f} · az={azimuth:.0f}°\nClick → OSC a SC",
-                    style={
-                        "position": "absolute", "left": f"{left_pct}%",
-                        "width": f"{width_pct - 0.5}%", "height": "34px",
-                        "background": color,
-                        "borderTop": f"3px solid {dir_color}",
-                        "borderLeft": "none", "borderRight": "none", "borderBottom": "none",
-                        "borderRadius": "0 0 3px 3px",
-                        "cursor": "pointer", "display": "flex", "flexDirection": "column",
-                        "alignItems": "center", "justifyContent": "center",
-                        "fontFamily": "monospace", "color": "white",
-                        "padding": "0", "top": "0",
-                    }
-                ),
-                dcc.Link("↗", href=f"/partitura/{g['index'] + 1}",
-                    style={
-                        "position": "absolute",
-                        "left": f"calc({left_pct}% + {width_pct - 1.5}% - 16px)",
-                        "top": "2px", "width": "14px", "height": "12px",
-                        "fontSize": "8px", "color": "rgba(255,255,255,0.6)",
-                        "textDecoration": "none", "textAlign": "center",
-                        "lineHeight": "12px",
-                    }),
-            ])
+            dcc.Link(
+                [
+                    html.Span(str(g["index"] + 1),
+                              style={"fontSize": "10px", "fontWeight": "bold",
+                                     "display": "block"}),
+                    html.Span(DIR_ABBREV.get(direction, direction[:5]),
+                              style={"fontSize": "7px", "opacity": "0.85",
+                                     "display": "block", "letterSpacing": "0.5px"}),
+                ],
+                href=f"/partitura/{g['index'] + 1}",
+                title=f"G{g['index']+1} · {direction} · t={tension:.2f} · az={azimuth:.0f}°",
+                style={
+                    "position": "absolute", "left": f"{left_pct}%",
+                    "width": f"{width_pct - 0.5}%", "height": "34px",
+                    "background": color,
+                    "borderTop": f"3px solid {dir_color}",
+                    "borderRadius": "0 0 3px 3px",
+                    "cursor": "pointer", "display": "flex", "flexDirection": "column",
+                    "alignItems": "center", "justifyContent": "center",
+                    "fontFamily": "monospace", "color": "white",
+                    "textDecoration": "none", "top": "0",
+                }
+            )
         )
     timeline_items.append(html.Div(
         f"{duration}″  ·  {n_gestures} fields  ·  {len(all_ids)} sounds  "
-        f"·  click block → OSC SC  ·  ↗ → score",
+        f"·  click block → score",
         style={"fontFamily": "monospace", "fontSize": "9px", "color": "#aaa",
                "position": "absolute", "bottom": "0", "left": "0"}
     ))
@@ -1501,7 +1488,7 @@ def export_to_contimbre(n_clicks, store_data):
     gesture_blocks = ""
     for g_idx, ids in sorted(gestures_ids.items()):
         lisp_ids = " ".join(f'"{sid}"' for sid in ids)
-        out_path = f"/Volumes/disk 1/conTimbre Standard V2/algorithmic orchestration/brownian_gesto_{g_idx + 1:02d}"
+        out_path = os.path.join(SCORES_DIR, f"brownian_field_{g_idx + 1:02d}")
         gesture_blocks += f"""
 (let* ((ids '({lisp_ids}))
        (ct-seq (remove nil
@@ -1529,7 +1516,7 @@ def export_to_contimbre(n_clicks, store_data):
         result = subprocess.run(["sbcl", "--load", SBCL_SCRIPT],
                                 capture_output=True, text=True, timeout=180)
         if "Esportato." in result.stdout:
-            return f"✓ {n_gestures} .cOrc files → brownian_field_01..{n_gestures:02d}"
+            return f"✓ {n_gestures} .cOrc files → scores/brownian_field_01..{n_gestures:02d}"
         return f"Errore: {result.stderr[:80]}"
     except subprocess.TimeoutExpired:
         return "Timeout — open SBCL manually."
@@ -2028,44 +2015,40 @@ def generate_score(n_clicks, gestures_data, df_store, duration, dynform_store):
 )
 def export_eplayer(n_clicks, store_data):
     """
-    Genera un .cePlayerOrc usando l'approccio ufficiale ConTimbre:
-      - find_keygroup_of_contimbre_sound  per ogni suono
-      - write_eplayer_orchestra           per scrivere il file
-    Una key MIDI per suono browniano (max 128), playing_mode 1.
+    Genera un unico contimbre_remnant.cePlayerOrc con una voice e N programmi
+    (uno per field). MIDI Program Change 0..N-1 seleziona il field attivo.
+    Mantiene anche i file per-field (contimbre_brownian_field_XX.cePlayerOrc)
+    per compatibilità con il workflow precedente.
     """
     import subprocess, os, tempfile
 
     if not store_data:
         return "Generate a composition first."
 
-    # Raggruppa suoni per gesto (max 128 per gesto)
     from collections import defaultdict
-    gestures_ids = defaultdict(list)
+    gestures_ids     = defaultdict(list)
     seen_per_gesture = defaultdict(set)
     for d in store_data:
-        g = d["gesture"]
+        g   = d["gesture"]
         sid = d["id"]
         if sid not in seen_per_gesture[g] and len(gestures_ids[g]) < 128:
             seen_per_gesture[g].add(sid)
             gestures_ids[g].append(sid)
 
     n_gestures = len(gestures_ids)
-    out_dir = ("/Volumes/disk 1/conTimbre Standard V2/algorithmic orchestration"
-               "/ePlayer orchestras")
+    out_path   = os.path.join(SCORES_DIR, "contimbre_remnant.cePlayerOrc")
 
-    # Costruisci un blocco Lisp per ogni gesto
-    gesture_blocks = ""
+    # Un blocco Lisp per ogni field → accumula programmi in all-programs
+    program_blocks = ""
     for g_idx, ids in sorted(gestures_ids.items()):
-        id_list  = " ".join(f'"{sid}"' for sid in ids)
-        out_path = f"{out_dir}/contimbre_brownian_gesto_{g_idx + 1:02d}.cePlayerOrc"
-        gesture_blocks += f"""
-  ;; ── Gesto {g_idx + 1} ──────────────────────────────────────────
-  (let* ((ids       '({id_list}))
-         (orchestra (contimbre:make-eplayer_orchestra))
-         (voice     (contimbre:make-eplayer_voice))
-         (program   (contimbre:make-eplayer_program))
-         (keys      nil)
-         (found     0))
+        id_list   = " ".join(f'"{sid}"' for sid in ids)
+        prog_name = f"field_{g_idx + 1:02d}"
+        program_blocks += f"""
+  ;; ── Field {g_idx + 1} ──────────────────────────────────────────
+  (let* ((ids  '({id_list}))
+         (prog (contimbre:make-eplayer_program))
+         (keys nil)
+         (found 0))
 
     (mapc (lambda (id)
             (let* ((sound (find id contimbre:contimbre
@@ -2089,14 +2072,12 @@ def export_eplayer(n_clicks, store_data):
         (setf keys (reverse (nthcdr (- (length keys) 128) (reverse keys))))))
 
     (if (null keys)
-      (format t "ERRORE gesto {g_idx + 1}: nessun suono trovato.~%")
+      (format t "SKIP field {g_idx + 1}: nessun suono~%")
       (progn
-        (setf (contimbre:eplayer_program-name    program) "program1")
-        (setf (contimbre:eplayer_program-keys    program) keys)
-        (setf (contimbre:eplayer_voice-programs  voice)   (list program))
-        (setf (contimbre:eplayer_orchestra-voices orchestra) (list voice))
-        (contimbre:write_eplayer_orchestra orchestra "{out_path}")
-        (format t "EPLAYER-OK gesto={g_idx + 1} suoni=~A~%" found))))
+        (setf (contimbre:eplayer_program-name prog) "{prog_name}")
+        (setf (contimbre:eplayer_program-keys prog) keys)
+        (push prog all-programs)
+        (format t "PROG-OK field={g_idx + 1} suoni=~A~%" found))))
 """
 
     lisp_script = f"""
@@ -2105,7 +2086,17 @@ def export_eplayer(n_clicks, store_data):
 (load (format nil "~A/algorithmic orchestration/contimbre_library.lisp" conTimbreDir))
 (in-package :contimbre)
 
-{gesture_blocks}
+(let* ((orchestra   (contimbre:make-eplayer_orchestra))
+       (voice       (contimbre:make-eplayer_voice))
+       (all-programs nil))
+
+{program_blocks}
+
+  (setf all-programs (reverse all-programs))
+  (setf (contimbre:eplayer_voice-programs voice) all-programs)
+  (setf (contimbre:eplayer_orchestra-voices orchestra) (list voice))
+  (contimbre:write_eplayer_orchestra orchestra "{out_path}")
+  (format t "EPLAYER-MULTI-OK programs=~A~%" (length all-programs)))
 
 (sb-ext:exit)
 """
@@ -2123,85 +2114,15 @@ def export_eplayer(n_clicks, store_data):
     except FileNotFoundError:
         return "SBCL not found in PATH."
 
-    ok_count = result.stdout.count("EPLAYER-OK")
-    if ok_count > 0:
-        return f"✓ {ok_count}/{n_gestures} files → contimbre_brownian_field_01..{n_gestures:02d}.cePlayerOrc"
+    if "EPLAYER-MULTI-OK" in result.stdout:
+        import re as _re
+        m = _re.search(r"EPLAYER-MULTI-OK programs=(\d+)", result.stdout)
+        n = m.group(1) if m else str(n_gestures)
+        return f"✓ {n} programs → contimbre_remnant.cePlayerOrc"
     return f"Errore: {result.stderr[:120] or result.stdout[:120]}"
 
 
 from flask import request, jsonify
-# ── OSC client ──────────────────────────────────────────────────────────────
-try:
-    from pythonosc import udp_client as _osc_client
-    _osc = _osc_client.SimpleUDPClient("127.0.0.1", 57121)
-    DYNFORM_TO_LACH = {
-        # (synth_bassa_tensione, synth_alta_tensione) — soglia 0.7
-        "Forward":  ("Textur",    "Kadenz"),
-        "Backward": ("Farbklang", "Geräusch"),
-        "Presence": ("Klang",     "Stille"),
-        "Neutral":  ("Neutro",    "Textur"),
-    }
-    TENSION_THRESHOLD = 0.7
-
-    def send_gesture_osc(idx, direction, tension, azimuth):
-        low, high = DYNFORM_TO_LACH.get(direction, ("Neutro", "Neutro"))
-        category  = high if tension >= TENSION_THRESHOLD else low
-        try:
-            _osc.send_message("/remnant/gesture",
-                [int(idx), category, float(tension), float(azimuth)])
-            print(f"OSC → G{idx+1} {direction}→{category} t={tension:.2f} az={azimuth:.1f}")
-        except Exception as e:
-            print(f"OSC errore: {e}")
-except ImportError:
-    DYNFORM_TO_LACH = {
-        "Forward":  ("Textur",    "Kadenz"),
-        "Backward": ("Farbklang", "Geräusch"),
-        "Presence": ("Klang",     "Stille"),
-        "Neutral":  ("Neutro",    "Textur"),
-    }
-    TENSION_THRESHOLD = 0.7
-    def send_gesture_osc(idx, direction, tension, azimuth):
-        low, high = DYNFORM_TO_LACH.get(direction, ("Neutro", "Neutro"))
-        category  = high if tension >= TENSION_THRESHOLD else low
-        print(f"[OSC mock] G{idx+1} {direction}→{category} t={tension:.2f} az={azimuth:.1f}")
-
-
-# ── OSC direction callback ───────────────────────────────────────────────────
-@app.callback(
-    Output("score-status", "children"),
-    Input({"type": "osc-btn", "index": dash.ALL}, "n_clicks"),
-    State("gestures-store", "data"),
-    prevent_initial_call=True,
-)
-def osc_gesture_click(n_clicks_list, gestures_data):
-    ctx = dash.callback_context
-    if not ctx.triggered or not gestures_data:
-        raise dash.exceptions.PreventUpdate
-
-    import re as _re, json as _json
-    triggered_id = ctx.triggered[0]["prop_id"]
-    m = _re.search(r'\{.*\}', triggered_id)
-    if not m:
-        raise dash.exceptions.PreventUpdate
-    try:
-        btn_idx = _json.loads(m.group(0))["index"]
-    except Exception:
-        raise dash.exceptions.PreventUpdate
-
-    g = next((g for g in gestures_data if g["index"] == btn_idx), None)
-    if g is None:
-        raise dash.exceptions.PreventUpdate
-
-    direction = g.get("dynamic_form", "Neutral")
-    tension   = float(g.get("tension", 0.5))
-    evs       = g.get("events_timed", [])
-    az_vals   = [ev.get("sound", {}).get("y", 180) for ev in evs if ev.get("sound")]
-    azimuth   = float(np.mean(az_vals)) if az_vals else 180.0
-
-    send_gesture_osc(btn_idx, direction, tension, azimuth)
-    glyph = {"Forward": "→", "Backward": "←", "Presence": "○", "Neutral": "—"}.get(direction, "")
-    return f"▶ G{btn_idx+1} · {glyph} {direction} · t={tension:.2f} · az={azimuth:.0f}°"
-
 
 # ── Saved scores ────────────────────────────────────────────────────────────
 
