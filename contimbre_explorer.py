@@ -387,13 +387,12 @@ def home_layout():
                 "fontFamily": "monospace", "fontSize": "10px",
                 "color": "#378ADD", "minHeight": "14px", "marginBottom": "8px",
             }),
-            html.Div(id="poisson-panel", children=[], style={"marginBottom": "8px"}),
 
             _hr(),
 
             # Parametri compositivi
             _label("Compositional form"),
-            _slider_block("Duration (sec)", "duration-slider", 30, 600, 10, 120),
+            _slider_block("Duration (sec)", "duration-slider", 4, 30, 1, 10),
             _slider_block("Number of fields", "gestures-slider", 1, 15, 1, 4),
 
             _hr(),
@@ -669,32 +668,8 @@ def tension_level(vol, xmin, xmax, ymin, ymax):
     return round((vol - 0.5) / vol_range, 2)
 
 
-def poisson_weights(df_active, lambda_by_family=None):
-    """Pesi Poisson per famiglia, ordinati per centroide spettrale crescente.
-    Rank n dentro la famiglia riceve peso P(k=n | lambda_famiglia).
-    Restituisce array allineato con df_active (reset_index).
-    """
-    from scipy.stats import poisson as _poisson
-    lambda_by_family = lambda_by_family or {}
-    df_r    = df_active.reset_index(drop=True)
-    weights = np.ones(len(df_r))
-    if "spectral_center" not in df_r.columns or "family" not in df_r.columns:
-        return weights
-    for fam, grp in df_r.groupby("family"):
-        lam = max(float(lambda_by_family.get(fam, 1.0)), 0.1)
-        sorted_pos = grp["spectral_center"].argsort().values
-        ranks      = np.empty(len(sorted_pos), dtype=int)
-        ranks[sorted_pos] = np.arange(len(sorted_pos))
-        fw = _poisson.pmf(ranks, lam)
-        fw = np.where(fw < 1e-9, 1e-9, fw)
-        fw = fw / fw.sum()
-        for local_i, global_i in enumerate(grp.index):
-            weights[global_i] = fw[local_i]
-    return weights
-
-
 def path_to_sequence(path, df_active, threshold=0.0, spectral_diversity=0.15,
-                     poisson_lambda=None):
+                     global_seen=None):
     """Convert a Brownian path to a sequence of sounds.
 
     If threshold > 0 (Lerdahl): select sound only if distance
@@ -706,9 +681,10 @@ def path_to_sequence(path, df_active, threshold=0.0, spectral_diversity=0.15,
     total spectral_center range. E.g. 0.15 = next sound must differ by
     at least 15% of the range. Set to 0.0 to disable.
     """
-    seen = set()
-    seq  = []
-    last_sc = None
+    seen        = set()
+    global_seen = global_seen or set()
+    seq         = []
+    last_sc     = None
 
     has_sc   = "spectral_center" in df_active.columns
     sc_range = float(df_active["spectral_center"].max()
@@ -724,18 +700,16 @@ def path_to_sequence(path, df_active, threshold=0.0, spectral_diversity=0.15,
             seq.append(None)
             continue
 
-        # Score combinato: distanza UMAP / peso Poisson (soluzione B)
-        df_r      = df_active.reset_index(drop=True)
-        pw        = poisson_weights(df_r, lambda_by_family=poisson_lambda)
-        dist_arr  = dists.values.astype(float)
-        dist_norm = dist_arr / (dist_arr.max() + 1e-9)
-        score     = dist_norm / (pw + 1e-9)
-        sorted_idx = np.argsort(score)
+        # Ordina per distanza UMAP crescente
+        df_r       = df_active.reset_index(drop=True)
+        sorted_idx = dists.argsort()
         selected = None
         for idx in sorted_idx:
             candidate = df_r.iloc[idx]
             sid = candidate["id"]
             if sid in seen:
+                continue
+            if sid in global_seen:
                 continue
             if has_sc and last_sc is not None and min_sc_diff > 0:
                 sc_diff = abs(float(candidate["spectral_center"]) - last_sc)
@@ -754,12 +728,16 @@ def path_to_sequence(path, df_active, threshold=0.0, spectral_diversity=0.15,
     # Rimuovi None finali ma mantieni quelli interni (pause timbriche)
     while seq and seq[-1] is None:
         seq.pop()
+    # Aggiorna global_seen con i suoni selezionati in questo field
+    for s in seq:
+        if s is not None:
+            global_seen.add(s["id"])
     return seq
 
 
 def generate_composition(n_gestures, steps, init_vol, drift_noise, duration_sec,
                          df_active, threshold=0.0, dynamic_form_sequence=None,
-                         attraction=0.35, spectral_diversity=0.15, poisson_lambda=None):
+                         attraction=0.35, spectral_diversity=0.15):
     """Generate composition using Dynamic Forms (Thoresen ch. 8) as directional engine.
 
     For each field:
@@ -767,7 +745,8 @@ def generate_composition(n_gestures, steps, init_vol, drift_noise, duration_sec,
     - Presence halves Brownian volatility
     - Tension profile is computed from direction (not just volatility)
     """
-    gestures = []
+    gestures    = []
+    global_seen = set()   # suoni già usati in field precedenti (diversità inter-field)
     vol, dx, dy = init_vol, 0.0, 0.0
     start = None
     xmin, xmax = df_active["x"].min(), df_active["x"].max()
@@ -795,7 +774,7 @@ def generate_composition(n_gestures, steps, init_vol, drift_noise, duration_sec,
 
         seq       = path_to_sequence(path, df_active, threshold=threshold,
                                      spectral_diversity=spectral_diversity,
-                                     poisson_lambda=poisson_lambda)
+                                     global_seen=global_seen)
         real_sounds = [s for s in seq if s is not None]
 
         # Brownian temporal distribution — Euclidean distances between steps
@@ -1114,11 +1093,24 @@ def build_score_json(gestures, duration, df_active, bpm=60, dur_scale=1.0):
                 "tension":    ev.get("tension", g.get("tension", 0.5)),
                 "accent":     ev.get("accent", "none"),
             })
-        t_vals = [e["t"] for e in events]
+        # Evita sovrapposizioni per stesso strumento nello stesso field.
+        # Durata stimata: DUR_MIN + tension * (DUR_MAX - DUR_MIN) in secondi.
+        DUR_MIN, DUR_MAX = 0.4, 7.0
+        last_end_by_instr = {}
+        events_sorted = sorted(events, key=lambda e: e["t"])
+        for ev in events_sorted:
+            instr    = ev["instrument"]
+            dur_est  = DUR_MIN + float(ev.get("tension", 0.5)) * (DUR_MAX - DUR_MIN)
+            last_end = last_end_by_instr.get(instr, 0.0)
+            if ev["t"] < last_end:
+                ev["t"] = round(last_end, 2)
+            last_end_by_instr[instr] = round(ev["t"] + dur_est, 2)
+        events = events_sorted
+
         score_gestures.append({
             "index":        g["index"],
-            "t_start":      min(t_vals),
-            "t_end":        max(t_vals),
+            "t_start":      g["t_start"],
+            "t_end":        g["t_end"],
             "tension":      g.get("tension", 0.5),
             "dynamic_form": g.get("dynamic_form", "Neutral"),
             "lachenmann":   g.get("lachenmann", "Neutro"),
@@ -1172,12 +1164,12 @@ def _upd_spectral_div(val): return str(val)
 def _upd_attraction(val): return str(val)
 
 
+
 # Apply filter → recompute UMAP → update df-store
 @app.callback(
     Output("df-store",      "data"),
     Output("filter-status", "children"),
     Output("umap-graph",    "figure", allow_duplicate=True),
-    Output("poisson-panel", "children"),
     Input("filter-btn",     "n_clicks"),
     [State(iid, "value") for iid in instr_filter_ids],
     prevent_initial_call=True,
@@ -1245,38 +1237,7 @@ def apply_filter(n_clicks, *instr_values):
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         hovermode="closest",
     )
-    # Pannello slider lambda Poisson per famiglia attiva
-    active_families = sorted(df_sub["family"].unique())
-    poisson_panel = []
-    if active_families:
-        poisson_panel.append(html.Div("Poisson λ per family", style={
-            "fontFamily": "monospace", "fontSize": "10px", "letterSpacing": "3px",
-            "color": "#aaa", "textTransform": "uppercase", "marginBottom": "8px",
-            "marginTop": "4px",
-        }))
-        for fam in active_families:
-            col    = FAMILY_COLORS.get(fam, "#888")
-            fam_id = fam.replace(" ", "_")
-            poisson_panel.append(html.Div([
-                html.Div([
-                    html.Span(fam, style={
-                        "fontFamily": "monospace", "fontSize": "10px",
-                        "color": col, "fontWeight": "bold",
-                    }),
-                    html.Span(id=f"poisson-{fam_id}-disp", children="1.0", style={
-                        "fontFamily": "monospace", "fontSize": "10px", "color": "#111",
-                        "fontWeight": "bold",
-                    }),
-                ], style={"display": "flex", "justifyContent": "space-between",
-                          "marginBottom": "4px"}),
-                dcc.Slider(
-                    id={"type": "poisson-slider", "family": fam},
-                    min=0.1, max=8.0, step=0.1, value=1.0,
-                    marks=None, tooltip={"always_visible": False},
-                ),
-            ], style={"marginBottom": "14px"}))
-
-    return df_out.to_dict("records"), status, _fig, poisson_panel
+    return df_out.to_dict("records"), status, _fig
 
 
 
@@ -1393,14 +1354,12 @@ def update_dynamic_form_dropdowns(n_gestures, df_store):
     State("attraction-slider",   "value"),
     State("spectral-div-slider", "value"),
     State({"type": "dynform-drop",   "index":  dash.ALL}, "value"),
-    State({"type": "poisson-slider", "family": dash.ALL}, "value"),
-    State({"type": "poisson-slider", "family": dash.ALL}, "id"),
     State("dynamic-form-store",  "data"),
     prevent_initial_call=True,
 )
 def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_noise,
              threshold, attraction, spectral_div, df_values,
-             poisson_vals, poisson_ids, dynform_store):
+             dynform_store):
     if df_store:
         df_active = pd.DataFrame(df_store)
     else:
@@ -1416,28 +1375,12 @@ def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_no
     else:
         dynamic_form_sequence = ["Neutral"] * n_gestures
 
-    # Costruisce dict lambda Poisson da State
-    poisson_lambda = {}
-    if poisson_vals and poisson_ids:
-        for pid, pval in zip(poisson_ids, poisson_vals):
-            if isinstance(pid, dict) and "family" in pid and pval is not None:
-                poisson_lambda[pid["family"]] = float(pval)
-
-    # Soluzione A: ricampiona df_active con pesi Poisson prima del Browniano
-    if poisson_lambda and len(df_active) > 10:
-        pw       = poisson_weights(df_active.reset_index(drop=True), lambda_by_family=poisson_lambda)
-        pw       = pw / pw.sum()
-        n_sample = min(len(df_active), max(10, int(len(df_active) * 0.8)))
-        s_idx    = np.random.choice(len(df_active), size=n_sample, replace=False, p=pw)
-        df_active = df_active.reset_index(drop=True).iloc[sorted(s_idx)].copy()
-
     gestures = generate_composition(
         n_gestures, steps, init_vol, drift_noise, duration, df_active,
         threshold=threshold or 0.0,
         dynamic_form_sequence=dynamic_form_sequence,
         attraction=attraction or 0.35,
         spectral_diversity=spectral_div if spectral_div is not None else 0.15,
-        poisson_lambda=poisson_lambda if poisson_lambda else None,
     )
 
     fig = go.Figure()
@@ -1833,23 +1776,17 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
         # Durate in secondi per ogni cella (proporzionali alle distanze browniane)
         cell_secs = [d / total_dist * g_dur for d in raw_dists]
 
-        # BPM dal JSON score se disponibile
-        import json as _json2, os as _os2
-        bpm_score = 60
-        if _os2.path.exists(SCORE_PATH):
-            try:
-                with open(SCORE_PATH) as _sf:
-                    bpm_score = _json2.load(_sf).get("bpm", 60)
-            except Exception:
-                pass
-        beat_sec = 60.0 / bpm_score
-
-        # BPM canonici di riferimento (standard metronomo)
+        # BPM canonico tale che g_dur * BPM / 60 sia il più vicino a un intero.
+        # Garantisce che la somma delle frazioni corrisponda alla durata reale.
+        n_steps = len(raw_dists)
         CANONICAL_BPM = [
             40,42,44,46,48,50,52,54,56,58,60,63,66,69,72,76,80,84,88,
             92,96,100,104,108,112,116,120,126,132,138,144,152,160,168,
             176,184,200,208
         ]
+        bpm_score = min(CANONICAL_BPM,
+                        key=lambda b: abs(g_dur * b / 60.0 - round(g_dur * b / 60.0)))
+        beat_sec  = 60.0 / bpm_score
         NOTE_UNITS = [
             ("\u266a",  0.5),    # ♪ croma
             ("\u266a.", 0.75),   # ♪. croma puntata
@@ -1859,11 +1796,22 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
             ("\U0001D157\U0001D165.", 3.0),  # 𝅗𝅥. minima puntata
         ]
 
-        # Per ogni cella trova num/den ottimale con denominatore binario (1,2,4,8,16,32)
-        # e unità+BPM locale
-        frac_labels = []
-        bpm_locals  = []
-        tick_times  = [0.0]
+        # Unità di nota globale — quella che porta al BPM canonico scelto
+        # per la durata media delle celle.
+        avg_cell_sec    = g_dur / n_steps if n_steps > 0 else 1.0
+        best_unit_label = "♩"
+        best_dist_u     = float("inf")
+        for unit_label, unit_beats in NOTE_UNITS:
+            bpm_loc  = unit_beats / avg_cell_sec * 60.0 if avg_cell_sec > 0 else 60.0
+            dist_u   = abs(bpm_loc - bpm_score)
+            if dist_u < best_dist_u:
+                best_dist_u     = dist_u
+                best_unit_label = unit_label
+
+        # Per ogni cella trova num/den ottimale con denominatore binario.
+        # Tutte le frazioni riferite allo stesso BPM globale del gesto.
+        frac_labels   = []
+        tick_times    = [0.0]
         BINARY_DENOMS = [1, 2, 4, 8, 16, 32]
         for dur_sec in cell_secs:
             dur_beats = dur_sec / beat_sec
@@ -1872,27 +1820,12 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
                 num = max(1, round(dur_beats * den))
                 err = abs(num / den - dur_beats)
                 if err < best_err:
-                    best_err  = err
+                    best_err           = err
                     best_num, best_den = num, den
             d = _gcd(best_num, best_den)
             fn, fd = best_num // d, best_den // d
             frac_labels.append(f"{fn}/{fd}" if fd > 1 else str(fn))
-
-            # Trova unità di nota che porta il BPM più vicino a un canonico
-            best_unit_label = "\u2669"
-            best_bpm_local  = 60
-            best_dist = float("inf")
-            for unit_label, unit_beats in NOTE_UNITS:
-                bpm_loc = unit_beats / dur_sec * 60.0 if dur_sec > 0 else 60.0
-                closest = min(CANONICAL_BPM, key=lambda b: abs(b - bpm_loc))
-                dist    = abs(bpm_loc - closest)
-                if dist < best_dist:
-                    best_dist       = dist
-                    best_unit_label = unit_label
-                    best_bpm_local  = closest
-            bpm_locals.append((best_unit_label, best_bpm_local))
             tick_times.append(tick_times[-1] + dur_sec)
-
 
         # Linea base
         fig.add_shape(type="line", x0=0, x1=g_dur, y0=RH_Y, y1=RH_Y,
@@ -1904,7 +1837,7 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
             line=dict(color=INK_LIGHT, width=1.0))
 
         # Tacche agli onset di ogni cella + etichette alternate
-        for i, (t_tick, label, (unit_label, local_bpm)) in enumerate(zip(tick_times[:-1], frac_labels, bpm_locals)):
+        for i, (t_tick, label) in enumerate(zip(tick_times[:-1], frac_labels)):
             # Barra rossa verticale attraverso tutta la partitura (0°–360°)
             # La prima tacca (i=0, t=0) e l'ultima non vengono tracciate
             # perché coincidono con i bordi del gesto
@@ -1926,7 +1859,7 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
             y_text = RH_Y + offset if above else RH_Y - offset
             anchor = "bottom" if above else "top"
             fig.add_annotation(x=t_tick, y=y_text,
-                text=f"<b>{label}</b><br><span style='font-size:9px;color:#555'>{unit_label}={local_bpm}</span>",
+                text=f"<b>{label}</b><br><span style='font-size:9px;color:#555'>{best_unit_label}={bpm_score}</span>",
                 font=dict(size=11, color=INK, family="Georgia, serif"),
                 showarrow=False, xanchor="center", yanchor=anchor)
 
@@ -1936,7 +1869,7 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
             font=dict(size=7, color=INK_FAINT, family="Georgia, serif"),
             showarrow=False, xanchor="left", yanchor="middle")
         fig.add_annotation(x=g_dur * 1.01, y=RH_Y - 6,
-            text=f"Σ {round(g_dur*1000)}ms",
+            text=f"Σ {round(g_dur, 2)}s",
             font=dict(size=7, color=INK_FAINT, family="Georgia, serif"),
             showarrow=False, xanchor="left", yanchor="top")
 

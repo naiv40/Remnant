@@ -26,9 +26,9 @@ contimbre_full.tsv
 umap_full_coords.csv
     ↓  contimbre_explorer.py  (Dash)
         ├─ Instrument family filter + local UMAP recomputation
-        ├─ Poisson distribution per family (λ per family, ordered by spectral centroid)
         ├─ Multi-field Brownian motion with spectral diversity constraint
-        ├─ Interactive graphic score
+        ├─ Inter-field sound exclusion (no repeated sounds across fields)
+        ├─ Interactive graphic score with proportional pulse grid
         ├─ Export .cOrc / .cePlayerOrc  (SBCL)
         └─ brownian_score.json  →  SuperCollider
                 ├─ remnant_sc.scd      (boot, buses, groups, synths)
@@ -46,11 +46,6 @@ umap_full_coords.csv
 pip install -r requirements.txt
 ```
 
-Requires `scipy` for Poisson distribution:
-```bash
-pip install scipy
-```
-
 ### SuperCollider
 Requires SuperCollider ≥ 3.12 with FluCoMa Quark:
 ```supercollider
@@ -59,7 +54,7 @@ Quarks.install("FluCoMa");
 ```
 
 ### Audio routing
-Requires [BlackHole](https://existential.audio/blackhole/) (16ch) configured as aggregate device with the audio interface. ePlayer sends 4 field tracks to BlackHole channels 1–4; SuperCollider reads them as `SoundIn.ar([0,1,2,3])`.
+Requires [BlackHole](https://existential.audio/blackhole/) (16ch) configured as aggregate device with the audio interface. ePlayer sends field tracks to BlackHole; SuperCollider reads them as `SoundIn.ar([0,1,2,3])`.
 
 ### ConTimbre + SBCL
 [ConTimbre Standard V2](https://www.contimbre.com) and [SBCL](http://www.sbcl.org) with Quicklisp must be installed and available in PATH.
@@ -101,13 +96,12 @@ remnant_hud.scd     Block 1, Block 2
 ### Composition (contimbre_explorer.py)
 1. Select instrument families in the left panel
 2. Click **Apply filter** — recomputes UMAP on the subset with McAdams perceptual weights
-3. Set **Poisson λ per family** — controls spectral density distribution within each family (appears after Apply filter)
-4. Set compositional parameters (duration, number of fields, Brownian steps)
-5. Set **Spectral diversity** — minimum spectral centroid difference between consecutive events
-6. Assign a **Temporal direction** to each field (Forward / Backward / Presence / Neutral)
-7. Click **Generate composition**
-8. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
-9. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
+3. Set compositional parameters (duration per field, number of fields, Brownian steps)
+4. Set **Spectral diversity** — minimum spectral centroid difference between consecutive events
+5. Assign a **Temporal direction** to each field (Forward / Backward / Presence / Neutral)
+6. Click **Generate composition**
+7. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
+8. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
 
 ### Live performance (remnant_hud.scd)
 All fields play simultaneously as a single body. The HUD is the only live interface.
@@ -151,13 +145,14 @@ IRs are generated procedurally in SC, one per Lachenmann category:
 
 All fields share the same IR and tension value (orchestra as a single body). Azimuth is per-field from the score.
 
-### Poisson distribution
-Instruments within each family are ranked by spectral centroid (ascending). Each rank n receives weight P(k=n | λ), where λ is set independently per family. The distribution acts at two levels:
+### Sound diversity
+Two mechanisms prevent timbral homogeneity across the composition:
 
-- **Corpus** — before Brownian generation, `df_active` is resampled using Poisson weights as probabilities. Instruments favoured by λ appear more frequently in the navigation space.
-- **Event selection** — during `path_to_sequence`, the selection score is `UMAP_distance / Poisson_weight`. Sounds favoured by the distribution are preferred at equal UMAP distance.
+- **Spectral diversity** — within each field, consecutive events must differ by a minimum fraction of the total spectral centroid range (slider 0.0–0.50).
+- **Inter-field exclusion** — each sound can only appear in one field. A shared `global_seen` set across all fields guarantees no repetitions.
 
-Low λ concentrates selection on instruments with low spectral centroid; high λ shifts the peak toward mid/high centroid instruments.
+### Pulse grid
+The pulse grid encodes the Brownian inter-step distances as binary rational fractions. All fractions within a gesture share a single BPM — chosen as the canonical metronome value for which `gesture_duration × BPM / 60` is closest to an integer, so that the sum of all fractions corresponds exactly to the gesture duration.
 
 ### Dynamic Form → Lachenmann mapping
 
@@ -174,7 +169,7 @@ Low λ concentrates selection on instruments with low spectral centroid; high λ
 
 | Parameter | Range | Description |
 |-----------|-------|-------------|
-| Duration | 30–600 s | Total composition duration |
+| Duration | 4–30 s | Total composition duration |
 | Number of fields | 1–15 | Simultaneous Brownian streams |
 | Brownian steps | 4–32 | Path length per field |
 | Initial volatility | 0.5–10.0 | Brownian step size |
@@ -182,7 +177,6 @@ Low λ concentrates selection on instruments with low spectral centroid; high λ
 | Distance threshold | 0.0–5.0 | Lerdahl timbral tension gate |
 | Spectral diversity | 0.0–0.50 | Min centroid difference between events |
 | Attraction intensity | 0.0–1.0 | Pull toward Dynamic Form attractor |
-| Poisson λ per family | 0.1–8.0 | Spectral density distribution per family |
 
 ---
 
@@ -194,8 +188,7 @@ Low λ concentrates selection on instruments with low spectral centroid; high λ
 | Temporal directions | Thoresen Dynamic Forms (Aural Sonology ch. 8) | Brownian attractor per direction |
 | Timbral tension | Lerdahl timbral hierarchy | Tension profile + distance threshold |
 | Timbral prolongation | McAdams prolongational hierarchy | IR categories + gesture sequencing |
-| Stochastic distribution | Xenakis — Poisson process | Per-family λ weighting on spectral centroid |
-| Pulse grid | Proportional notation | Brownian inter-step distances → binary rational fractions with local BPM per cell |
+| Pulse grid | Proportional notation | Brownian inter-step distances → binary rational fractions, single canonical BPM per gesture |
 
 Full theoretical notes: `remnant_note_teoriche.docx`
 
@@ -207,7 +200,7 @@ Each field is visualised on an azimuthal axis (0–360°, mapped to 8-channel oc
 
 - **Sound bars** — duration and onset of each event, clipped to field boundaries
 - **Accent symbols** — release point ▲, goal point ●, termination ▼, warning point ◇ (Aural Sonology notation)
-- **Pulse grid** — Brownian inter-step distances as binary rational fractions, with local BPM per cell
+- **Pulse grid** — Brownian inter-step distances as binary rational fractions, single BPM per gesture; sum of fractions = gesture duration
 - **Red vertical lines** — pulse grid divisions crossing the full azimuthal range
 - **Two tension curves** — compositional profile (from Dynamic Form) and Brownian envelope (inverse of step duration)
 
