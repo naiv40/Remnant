@@ -387,6 +387,7 @@ def home_layout():
                 "fontFamily": "monospace", "fontSize": "10px",
                 "color": "#378ADD", "minHeight": "14px", "marginBottom": "8px",
             }),
+            html.Div(id="poisson-panel", children=[], style={"marginBottom": "8px"}),
 
             _hr(),
 
@@ -402,6 +403,7 @@ def home_layout():
             _slider_block("Initial volatility", "volatility-slider", 0.5, 10.0, 0.5, 3.0),
             _slider_block("Stochastic drift", "drift-noise-slider", 0.0, 2.0, 0.1, 0.5),
             _slider_block("Distance threshold (Lerdahl)", "threshold-slider", 0.0, 5.0, 0.1, 0.0),
+            _slider_block("Spectral diversity", "spectral-div-slider", 0.0, 0.5, 0.01, 0.15),
 
             _hr(),
 
@@ -612,6 +614,13 @@ def recompute_umap(df_subset):
 
     X = df_subset[available].fillna(0).values
     X_std = StandardScaler().fit_transform(X)
+
+    # Ponderazione McAdams — stessa di umap_full.py
+    weight_map = {"pitch": 1.5, "dynamic_num": 1.0,
+                  "spectral_complexity": 2.0, "spectral_center": 3.0}
+    weights = np.array([weight_map.get(c, 1.0) for c in available])
+    X_std = X_std * weights
+
     n_neighbors = min(8, len(df_subset) - 1)
     embedding = umap_lib.UMAP(n_components=2, n_neighbors=n_neighbors,
                                min_dist=0.1, random_state=42).fit_transform(X_std)
@@ -660,27 +669,88 @@ def tension_level(vol, xmin, xmax, ymin, ymax):
     return round((vol - 0.5) / vol_range, 2)
 
 
-def path_to_sequence(path, df_active, threshold=0.0):
+def poisson_weights(df_active, lambda_by_family=None):
+    """Pesi Poisson per famiglia, ordinati per centroide spettrale crescente.
+    Rank n dentro la famiglia riceve peso P(k=n | lambda_famiglia).
+    Restituisce array allineato con df_active (reset_index).
+    """
+    from scipy.stats import poisson as _poisson
+    lambda_by_family = lambda_by_family or {}
+    df_r    = df_active.reset_index(drop=True)
+    weights = np.ones(len(df_r))
+    if "spectral_center" not in df_r.columns or "family" not in df_r.columns:
+        return weights
+    for fam, grp in df_r.groupby("family"):
+        lam = max(float(lambda_by_family.get(fam, 1.0)), 0.1)
+        sorted_pos = grp["spectral_center"].argsort().values
+        ranks      = np.empty(len(sorted_pos), dtype=int)
+        ranks[sorted_pos] = np.arange(len(sorted_pos))
+        fw = _poisson.pmf(ranks, lam)
+        fw = np.where(fw < 1e-9, 1e-9, fw)
+        fw = fw / fw.sum()
+        for local_i, global_i in enumerate(grp.index):
+            weights[global_i] = fw[local_i]
+    return weights
+
+
+def path_to_sequence(path, df_active, threshold=0.0, spectral_diversity=0.15,
+                     poisson_lambda=None):
     """Convert a Brownian path to a sequence of sounds.
+
     If threshold > 0 (Lerdahl): select sound only if distance
     from Brownian point is below threshold, otherwise skip
-    producing timbral rarefaction/pause."""
+    producing timbral rarefaction/pause.
+
+    spectral_diversity: minimum fractional difference in spectral_center
+    required between consecutive selected sounds, as a fraction of the
+    total spectral_center range. E.g. 0.15 = next sound must differ by
+    at least 15% of the range. Set to 0.0 to disable.
+    """
     seen = set()
-    seq = []
+    seq  = []
+    last_sc = None
+
+    has_sc   = "spectral_center" in df_active.columns
+    sc_range = float(df_active["spectral_center"].max()
+                     - df_active["spectral_center"].min()) if has_sc else 1.0
+    sc_range    = max(sc_range, 1.0)
+    min_sc_diff = spectral_diversity * sc_range
+
     for px, py in path:
-        dists = (df_active["x"] - px)**2 + (df_active["y"] - py)**2
+        dists    = (df_active["x"] - px)**2 + (df_active["y"] - py)**2
         min_dist = np.sqrt(dists.min())
+
         if threshold > 0 and min_dist > threshold:
-            # Punto fuori soglia: tensione prolungata, nessun suono selezionato
             seq.append(None)
             continue
-        sound = df_active.iloc[dists.idxmin()]
-        sid = sound["id"]
-        if sid not in seen:
-            seen.add(sid)
-            seq.append(sound)
+
+        # Score combinato: distanza UMAP / peso Poisson (soluzione B)
+        df_r      = df_active.reset_index(drop=True)
+        pw        = poisson_weights(df_r, lambda_by_family=poisson_lambda)
+        dist_arr  = dists.values.astype(float)
+        dist_norm = dist_arr / (dist_arr.max() + 1e-9)
+        score     = dist_norm / (pw + 1e-9)
+        sorted_idx = np.argsort(score)
+        selected = None
+        for idx in sorted_idx:
+            candidate = df_r.iloc[idx]
+            sid = candidate["id"]
+            if sid in seen:
+                continue
+            if has_sc and last_sc is not None and min_sc_diff > 0:
+                sc_diff = abs(float(candidate["spectral_center"]) - last_sc)
+                if sc_diff < min_sc_diff:
+                    continue
+            selected = candidate
+            break
+
+        if selected is not None:
+            seen.add(selected["id"])
+            last_sc = float(selected["spectral_center"]) if has_sc else None
+            seq.append(selected)
         else:
             seq.append(None)
+
     # Rimuovi None finali ma mantieni quelli interni (pause timbriche)
     while seq and seq[-1] is None:
         seq.pop()
@@ -688,7 +758,8 @@ def path_to_sequence(path, df_active, threshold=0.0):
 
 
 def generate_composition(n_gestures, steps, init_vol, drift_noise, duration_sec,
-                         df_active, threshold=0.0, dynamic_form_sequence=None, attraction=0.35):
+                         df_active, threshold=0.0, dynamic_form_sequence=None,
+                         attraction=0.35, spectral_diversity=0.15, poisson_lambda=None):
     """Generate composition using Dynamic Forms (Thoresen ch. 8) as directional engine.
 
     For each field:
@@ -722,7 +793,9 @@ def generate_composition(n_gestures, steps, init_vol, drift_noise, duration_sec,
         # Tensione globale del gesto = media del profilo
         tension = round(float(np.mean(tension_profile)), 2)
 
-        seq       = path_to_sequence(path, df_active, threshold=threshold)
+        seq       = path_to_sequence(path, df_active, threshold=threshold,
+                                     spectral_diversity=spectral_diversity,
+                                     poisson_lambda=poisson_lambda)
         real_sounds = [s for s in seq if s is not None]
 
         # Brownian temporal distribution — Euclidean distances between steps
@@ -1017,7 +1090,6 @@ def build_score_json(gestures, duration, df_active, bpm=60, dur_scale=1.0):
 
     score_gestures = []
     for g in gestures:
-        print(f"DEBUG build_score_json g{g['index']} lachenmann={g.get('lachenmann')}")
         events_timed = g.get("events_timed", [])
         if not events_timed:
             continue
@@ -1093,6 +1165,9 @@ def _upd_drift(val):      return str(val)
 @app.callback(Output("threshold-slider-display",  "children"), Input("threshold-slider",  "value"))
 def _upd_threshold(val):  return str(val)
 
+@app.callback(Output("spectral-div-slider-display", "children"), Input("spectral-div-slider", "value"))
+def _upd_spectral_div(val): return str(val)
+
 @app.callback(Output("attraction-slider-display", "children"), Input("attraction-slider", "value"))
 def _upd_attraction(val): return str(val)
 
@@ -1102,6 +1177,7 @@ def _upd_attraction(val): return str(val)
     Output("df-store",      "data"),
     Output("filter-status", "children"),
     Output("umap-graph",    "figure", allow_duplicate=True),
+    Output("poisson-panel", "children"),
     Input("filter-btn",     "n_clicks"),
     [State(iid, "value") for iid in instr_filter_ids],
     prevent_initial_call=True,
@@ -1169,7 +1245,38 @@ def apply_filter(n_clicks, *instr_values):
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         hovermode="closest",
     )
-    return df_out.to_dict("records"), status, _fig
+    # Pannello slider lambda Poisson per famiglia attiva
+    active_families = sorted(df_sub["family"].unique())
+    poisson_panel = []
+    if active_families:
+        poisson_panel.append(html.Div("Poisson λ per family", style={
+            "fontFamily": "monospace", "fontSize": "10px", "letterSpacing": "3px",
+            "color": "#aaa", "textTransform": "uppercase", "marginBottom": "8px",
+            "marginTop": "4px",
+        }))
+        for fam in active_families:
+            col    = FAMILY_COLORS.get(fam, "#888")
+            fam_id = fam.replace(" ", "_")
+            poisson_panel.append(html.Div([
+                html.Div([
+                    html.Span(fam, style={
+                        "fontFamily": "monospace", "fontSize": "10px",
+                        "color": col, "fontWeight": "bold",
+                    }),
+                    html.Span(id=f"poisson-{fam_id}-disp", children="1.0", style={
+                        "fontFamily": "monospace", "fontSize": "10px", "color": "#111",
+                        "fontWeight": "bold",
+                    }),
+                ], style={"display": "flex", "justifyContent": "space-between",
+                          "marginBottom": "4px"}),
+                dcc.Slider(
+                    id={"type": "poisson-slider", "family": fam},
+                    min=0.1, max=8.0, step=0.1, value=1.0,
+                    marks=None, tooltip={"always_visible": False},
+                ),
+            ], style={"marginBottom": "14px"}))
+
+    return df_out.to_dict("records"), status, _fig, poisson_panel
 
 
 
@@ -1241,10 +1348,9 @@ def save_dynamic_forms(df_values, n_gestures):
 @app.callback(
     Output("dynamic-form-dropdowns", "children"),
     Input("gestures-slider", "value"),
-    Input("url", "pathname"),
-    State("dynamic-form-store", "data"),
+    Input("dynamic-form-store", "data"),
 )
-def update_dynamic_form_dropdowns(n_gestures, pathname, df_store):
+def update_dynamic_form_dropdowns(n_gestures, df_store):
     options = [{"label": cat, "value": cat} for cat in DYNAMIC_FORM_CATEGORIES]
     items = []
     for i in range(n_gestures):
@@ -1261,6 +1367,7 @@ def update_dynamic_form_dropdowns(n_gestures, pathname, df_store):
                 options=options,
                 value=saved,
                 clearable=False,
+                searchable=False,
                 style={"fontFamily": "monospace", "fontSize": "9px", "flex": "1",
                        "color": dir_color},
             ),
@@ -1284,12 +1391,16 @@ def update_dynamic_form_dropdowns(n_gestures, pathname, df_store):
     State("drift-noise-slider",  "value"),
     State("threshold-slider",    "value"),
     State("attraction-slider",   "value"),
-    State({"type": "dynform-drop", "index": dash.ALL}, "value"),
+    State("spectral-div-slider", "value"),
+    State({"type": "dynform-drop",   "index":  dash.ALL}, "value"),
+    State({"type": "poisson-slider", "family": dash.ALL}, "value"),
+    State({"type": "poisson-slider", "family": dash.ALL}, "id"),
     State("dynamic-form-store",  "data"),
     prevent_initial_call=True,
 )
 def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_noise,
-             threshold, attraction, df_values, dynform_store):
+             threshold, attraction, spectral_div, df_values,
+             poisson_vals, poisson_ids, dynform_store):
     if df_store:
         df_active = pd.DataFrame(df_store)
     else:
@@ -1305,11 +1416,28 @@ def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_no
     else:
         dynamic_form_sequence = ["Neutral"] * n_gestures
 
+    # Costruisce dict lambda Poisson da State
+    poisson_lambda = {}
+    if poisson_vals and poisson_ids:
+        for pid, pval in zip(poisson_ids, poisson_vals):
+            if isinstance(pid, dict) and "family" in pid and pval is not None:
+                poisson_lambda[pid["family"]] = float(pval)
+
+    # Soluzione A: ricampiona df_active con pesi Poisson prima del Browniano
+    if poisson_lambda and len(df_active) > 10:
+        pw       = poisson_weights(df_active.reset_index(drop=True), lambda_by_family=poisson_lambda)
+        pw       = pw / pw.sum()
+        n_sample = min(len(df_active), max(10, int(len(df_active) * 0.8)))
+        s_idx    = np.random.choice(len(df_active), size=n_sample, replace=False, p=pw)
+        df_active = df_active.reset_index(drop=True).iloc[sorted(s_idx)].copy()
+
     gestures = generate_composition(
         n_gestures, steps, init_vol, drift_noise, duration, df_active,
         threshold=threshold or 0.0,
         dynamic_form_sequence=dynamic_form_sequence,
         attraction=attraction or 0.35,
+        spectral_diversity=spectral_div if spectral_div is not None else 0.15,
+        poisson_lambda=poisson_lambda if poisson_lambda else None,
     )
 
     fig = go.Figure()
@@ -1979,7 +2107,8 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
 
 
 @app.callback(
-    Output("score-ready", "data"),
+    Output("score-ready",  "data"),
+    Output("score-status", "children"),
     Input("score-btn-root",      "n_clicks"),
     State("gestures-store",      "data"),
     State("df-store",            "data"),
@@ -1989,12 +2118,12 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
 )
 def generate_score(n_clicks, gestures_data, df_store, duration, dynform_store):
     if not gestures_data:
-        return False
+        return False, "Generate a composition first."
     dynform_store = dynform_store or {}
     for g in gestures_data:
         idx = g.get("index", 0)
         g["dynamic_form"] = dynform_store.get(str(idx), "Neutral")
-        g["lachenmann"]   = "Neutro"  # compatibilità SC
+        g["lachenmann"]   = "Neutro"  # compatibilita SC
     if df_store:
         df_active = pd.DataFrame(df_store)
     else:
@@ -2003,8 +2132,9 @@ def generate_score(n_clicks, gestures_data, df_store, duration, dynform_store):
     score = build_score_json(gestures_data, duration, df_active, bpm=60, dur_scale=1.0)
     with open(SCORE_PATH, "w") as f:
         _json.dump(score, f)
-    total = sum(len(g["events"]) for g in score["gestures"])
-    return True
+    n_fields = len(score["gestures"])
+    total    = sum(len(g["events"]) for g in score["gestures"])
+    return True, f"✓ Score saved — {n_fields} fields · {total} events"
 
 
 @app.callback(

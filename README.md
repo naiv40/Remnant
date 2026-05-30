@@ -26,7 +26,8 @@ contimbre_full.tsv
 umap_full_coords.csv
     ↓  contimbre_explorer.py  (Dash)
         ├─ Instrument family filter + local UMAP recomputation
-        ├─ Multi-field Brownian motion
+        ├─ Poisson distribution per family (λ per family, ordered by spectral centroid)
+        ├─ Multi-field Brownian motion with spectral diversity constraint
         ├─ Interactive graphic score
         ├─ Export .cOrc / .cePlayerOrc  (SBCL)
         └─ brownian_score.json  →  SuperCollider
@@ -43,6 +44,11 @@ umap_full_coords.csv
 ### Python
 ```bash
 pip install -r requirements.txt
+```
+
+Requires `scipy` for Poisson distribution:
+```bash
+pip install scipy
 ```
 
 ### SuperCollider
@@ -94,12 +100,14 @@ remnant_hud.scd     Block 1, Block 2
 
 ### Composition (contimbre_explorer.py)
 1. Select instrument families in the left panel
-2. Click **Apply filter** — recomputes UMAP on the subset
-3. Set compositional parameters (duration, number of fields, Brownian steps)
-4. Assign a **Temporal direction** to each field (Forward / Backward / Presence / Neutral)
-5. Click **Generate composition**
-6. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
-7. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
+2. Click **Apply filter** — recomputes UMAP on the subset with McAdams perceptual weights
+3. Set **Poisson λ per family** — controls spectral density distribution within each family (appears after Apply filter)
+4. Set compositional parameters (duration, number of fields, Brownian steps)
+5. Set **Spectral diversity** — minimum spectral centroid difference between consecutive events
+6. Assign a **Temporal direction** to each field (Forward / Backward / Presence / Neutral)
+7. Click **Generate composition**
+8. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
+9. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
 
 ### Live performance (remnant_hud.scd)
 All fields play simultaneously as a single body. The HUD is the only live interface.
@@ -143,6 +151,14 @@ IRs are generated procedurally in SC, one per Lachenmann category:
 
 All fields share the same IR and tension value (orchestra as a single body). Azimuth is per-field from the score.
 
+### Poisson distribution
+Instruments within each family are ranked by spectral centroid (ascending). Each rank n receives weight P(k=n | λ), where λ is set independently per family. The distribution acts at two levels:
+
+- **Corpus** — before Brownian generation, `df_active` is resampled using Poisson weights as probabilities. Instruments favoured by λ appear more frequently in the navigation space.
+- **Event selection** — during `path_to_sequence`, the selection score is `UMAP_distance / Poisson_weight`. Sounds favoured by the distribution are preferred at equal UMAP distance.
+
+Low λ concentrates selection on instruments with low spectral centroid; high λ shifts the peak toward mid/high centroid instruments.
+
 ### Dynamic Form → Lachenmann mapping
 
 | Direction | Low tension (< 0.7) | High tension (≥ 0.7) |
@@ -154,6 +170,22 @@ All fields share the same IR and tension value (orchestra as a single body). Azi
 
 ---
 
+## Compositional parameters
+
+| Parameter | Range | Description |
+|-----------|-------|-------------|
+| Duration | 30–600 s | Total composition duration |
+| Number of fields | 1–15 | Simultaneous Brownian streams |
+| Brownian steps | 4–32 | Path length per field |
+| Initial volatility | 0.5–10.0 | Brownian step size |
+| Stochastic drift | 0.0–2.0 | Parameter evolution rate |
+| Distance threshold | 0.0–5.0 | Lerdahl timbral tension gate |
+| Spectral diversity | 0.0–0.50 | Min centroid difference between events |
+| Attraction intensity | 0.0–1.0 | Pull toward Dynamic Form attractor |
+| Poisson λ per family | 0.1–8.0 | Spectral density distribution per family |
+
+---
+
 ## Theoretical framework
 
 | Layer | Reference | Implementation |
@@ -162,6 +194,7 @@ All fields share the same IR and tension value (orchestra as a single body). Azi
 | Temporal directions | Thoresen Dynamic Forms (Aural Sonology ch. 8) | Brownian attractor per direction |
 | Timbral tension | Lerdahl timbral hierarchy | Tension profile + distance threshold |
 | Timbral prolongation | McAdams prolongational hierarchy | IR categories + gesture sequencing |
+| Stochastic distribution | Xenakis — Poisson process | Per-family λ weighting on spectral centroid |
 | Pulse grid | Proportional notation | Brownian inter-step distances → binary rational fractions with local BPM per cell |
 
 Full theoretical notes: `remnant_note_teoriche.docx`
@@ -186,6 +219,8 @@ Each field is visualised on an azimuthal axis (0–360°, mapped to 8-channel oc
 remnant/
 ├── contimbre_explorer.py      # Dash application — composition and score
 ├── umap_full.py               # UMAP pipeline (McAdams weights)
+├── generate_reaper.py         # Reaper project generator
+├── generate_midi.py           # MIDI file generator
 ├── plot_brownian.py           # Matplotlib Brownian path plot
 ├── export_tsv.lisp            # ConTimbre corpus extraction via SBCL
 ├── remnant_sc.scd             # SC — boot, buses, groups, SynthDefs
