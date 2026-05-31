@@ -150,7 +150,7 @@ if(~r_score.notNil) {
 	"═══ REMNANT stop ═══".postln;
 };
 
-// ── Stereo fold per cuffia ────────────────────────────────────────────────────
+// ── Stereo fold for headphones ────────────────────────────────────────────────────
 SynthDef(\r_stereoFold, {
 	var octo, wL, wR, sigL, sigR;
 	octo = In.ar(0, 8);
@@ -165,15 +165,15 @@ SynthDef(\r_stereoFold, {
 
 ~r_foldStart = {
 	~r_foldSynth = Synth(\r_stereoFold, target: s, addAction: \addToTail);
-	"● Stereo fold ON (cuffia)".postln;
+	"● Stereo fold ON".postln;
 };
 
 ~r_foldStop = {
 	if(~r_foldSynth.notNil) { ~r_foldSynth.free; ~r_foldSynth = nil };
-	"■ Stereo fold OFF (diffusori)".postln;
+	"■ Stereo fold OFF".postln;
 };
 
-// ── Registrazione ────────────────────────────────────────────────────────────
+// ── Recording ────────────────────────────────────────────────────────────
 SynthDef(\r_rec, {
 	|bufnum=0|
 	var sig = Mix.ar(SoundIn.ar([0,1,2,3])) / 4.0;
@@ -199,7 +199,7 @@ SynthDef(\r_rec, {
 	("■ REC stop").postln;
 };
 
-// ── Stereo fold per cuffia ────────────────────────────────────────────────────
+// ── Stereo fold for headphones ────────────────────────────────────────────────────
 SynthDef(\r_stereoFold, {
 	var octo, wL, wR, sigL, sigR;
 	octo = In.ar(0, 8);
@@ -293,9 +293,9 @@ layout.add(
 	.stringColor_(dimCol).align_(\center)
 );
 
-// ── Categoria attiva ──────────────────────────────────────────────────────────
+// ── Active category ──────────────────────────────────────────────────────────
 activeCatLabel = StaticText()
-	.string_("— in attesa —")
+	.string_("— waiting —")
 	.font_(Font("Georgia", 15, italic: true))
 	.stringColor_(dimCol).align_(\center);
 layout.add(activeCatLabel);
@@ -305,9 +305,9 @@ layout.add(activeCatLabel);
 
 layout.add(sep.());
 
-// ── Bottoni categoria (controllo manuale) ─────────────────────────────────────
+// ── Bottoni category (controllo manuale) ─────────────────────────────────────
 layout.add(
-	StaticText().string_("categoria")
+	StaticText().string_("category")
 	.font_(monoSmall).stringColor_(dimCol).align_(\center)
 );
 
@@ -394,7 +394,7 @@ flucoRow.add(flucoBar);
 flucoRow.add(flucoVal);
 layout.add(flucoRow);
 
-// ── Tension finale ────────────────────────────────────────────────────────────
+// ── Final tension ────────────────────────────────────────────────────────────
 finalTRow = HLayout();
 finalTRow.margins = [0,0,0,0]; finalTRow.spacing = 4;
 finalTBar = UserView()
@@ -410,7 +410,7 @@ finalTBar.setProperty(\finalTVal, 0.0);
 finalTVal = StaticText().string_("0.00")
 	.font_(monoSmall).stringColor_(Color(0.5, 0.3, 0.9))
 	.fixedWidth_(36).align_(\right);
-finalTRow.add(StaticText().string_("t finale")
+finalTRow.add(StaticText().string_("final t")
 	.font_(monoSmall).stringColor_(dimCol).fixedWidth_(88));
 finalTRow.add(finalTBar);
 finalTRow.add(finalTVal);
@@ -496,11 +496,11 @@ layout.add(volRow);
 
 layout.add(sep.());
 
-// ── Monitor cuffia ────────────────────────────────────────────────────────────
+// ── Headphone monitor ────────────────────────────────────────────────────────────
 foldBtn = Button()
 	.states_([
-		["◎  CUFFIA",    Color(0.5, 0.5, 0.5), Color(0.12, 0.12, 0.12)],
-		["◎  CUFFIA ON", Color(0.1, 0.1, 0.1), Color(0.5,  0.75, 0.3) ],
+		["◎  HEADPHONES",    Color(0.5, 0.5, 0.5), Color(0.12, 0.12, 0.12)],
+		["◎  HEADPHONES ON", Color(0.1, 0.1, 0.1), Color(0.5,  0.75, 0.3) ],
 	])
 	.font_(Font("Courier New", 9, bold: true));
 foldBtn.action = { |b| if(b.value == 1) { ~r_foldStart.() } { ~r_foldStop.() } };
@@ -521,10 +521,10 @@ recLabel = StaticText()
 recBtn.action = { |b|
 	if(b.value == 1) {
 		~r_recStart.();
-		{ recLabel.string_("● registrazione in corso") }.defer;
+		{ recLabel.string_("● recording...") }.defer;
 	} {
 		~r_recStop.();
-		{ recLabel.string_("✓ salvato su Desktop") }.defer;
+		{ recLabel.string_("✓ saved to Desktop") }.defer;
 	};
 };
 layout.add(recBtn);
@@ -543,7 +543,7 @@ panicBtn = Button()
 	});
 layout.add(panicBtn);
 
-// ── Routine di refresh ────────────────────────────────────────────────────────
+// ── Refresh routine ────────────────────────────────────────────────────────
 hudRoutine = Routine({
 	var gv, ft, gt, fin;
 	loop {
@@ -565,5 +565,5 @@ hudRoutine = Routine({
 
 win.onClose = { hudRoutine.stop; if(~r_recSynth.notNil) { ~r_recStop.() }; if(~r_foldSynth.notNil) { ~r_foldStop.() } };
 win.front;
-"HUD aperto. Clicca una categoria per attivarla.".postln;
+"HUD aperto. Clicca una category per attivarla.".postln;
 )

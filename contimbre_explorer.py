@@ -2278,7 +2278,7 @@ def score_save_load(name, load_clicks, selected_file):
             return "Generate a score first.", ""
         dst = os.path.join(SCORES_DIR, f"{name}.json")
         _shutil.copy2(SCORE_PATH, dst)
-        return f"✓ Salvata: {name}.json", ""
+        return f"✓ Saveta: {name}.json", ""
 
     if "score-load-btn" in triggered:
         if not selected_file:

@@ -3,10 +3,10 @@
 ║  REMNANT — Convolution Engine  (Lerdahl masking)                             ║
 ║  Launch AFTER remnant_sc.scd                                                 ║
 ║                                                                              ║
-║  Tensione come mascheramento progressivo della sorgente (Lerdahl):          ║
-║    0.0  → sorgente intatta   (dry = 1.0,  conv = 0.0,  scramble = 0)       ║
+║  Tension as progressive masking of the source (Lerdahl):                    ║
+║    0.0  → source intact      (dry = 1.0,  conv = 0.0,  scramble = 0)       ║
 ║    0.5  → ibrido timbrico    (dry = 0.5,  conv = 0.5,  scramble parziale)  ║
-║    1.0  → sorgente distrutta (dry = 0.0,  conv = 1.0,  scramble pieno)     ║
+║    1.0  → source destroyed   (dry = 0.0,  conv = 1.0,  scramble full)      ║
 ║                                                                              ║
 ║  Pipeline per field:                                                         ║
 ║    SoundIn → [PitchScrambler] → [Convolution2] → [FreqShift+BPF] → Out     ║
@@ -63,9 +63,9 @@ Routine({
 ~conv_irBufs = Dictionary.new;
 
 // ── IR generator ─────────────────────────────────────────────────────────────
-// Gli IR definiscono il "colore" della categoria timbrica.
+// IRs define il "colore" della categoria timbrica.
 // Ogni categoria ha un profilo spettrale diverso che determina
-// in che modo la sorgente viene trasformata a tensione alta.
+// how the source is transformed a tensione alta.
 ~conv_genIR = { |cat|
 	var p       = ~conv_params[cat];
 	var irLen   = p[0];
@@ -135,7 +135,7 @@ Routine({
 			};
 		},
 
-		// Textur: modulazione FM lenta — crea un velo sonoro sopra la sorgente
+		// Textur: slow FM modulation — creates a sonic veil over the source
 		"Textur", {
 			n.do { |i|
 				t      = i / sr;
@@ -186,8 +186,8 @@ s.sync;
 // ─────────────────────────────────────────────────────────────────────────────
 // SynthDef \r_conv — pipeline completa di mascheramento Lerdahl
 //
-// tension 0.0 → dry puro, nessuna trasformazione
-// tension 1.0 → sorgente completamente mascherata/irriconoscibile
+// tension 0.0 → pure dry, no transformation
+// tension 1.0 → source completely masked/unrecognizable
 //
 // Pipeline:
 //   1. PitchShift  — scramble melodico/timbrico (pitchRatio, pitchDisp, timeDisp)
@@ -231,7 +231,7 @@ SynthDef(\r_conv, {
 		timeDispersion:  t * timeDisp,
 	);
 
-	// ── 3. Convolution2 (colore categoriale) ─────────────────────────────────
+	// ── 3. Convolution2 (categorical color) ─────────────────────────────────
 	// Usa lo scrambled come input — l'IR si applica sul segnale già alterato
 	convolved = Convolution2.ar(scrambled, irBuf, 0, 2048, 0.5);
 	convolved = LeakDC.ar(convolved);
@@ -363,7 +363,7 @@ s.sync;
 };
 
 // ── Update live di tension senza cambiare categoria ───────────────────────────
-// Chiamabile dall'HUD per aggiornare solo la tension in tempo reale
+// Callable from HUD per aggiornare solo la tension in tempo reale
 // senza rigenerare il synth (usa .set su procA).
 ~r_setTension = { |tension|
 	var finalT = (tension + (~r_flucoTension * 0.4)).clip(0, 1);
@@ -376,7 +376,7 @@ s.sync;
 	};
 };
 
-// Trigger iniziale
+// Initial trigger
 AppClock.sched(0.1, {
 	~r_gesture.("Neutro", 0.0, 180);
 	nil;
@@ -405,8 +405,8 @@ AppClock.sched(0.1, {
 
 "═══════════════════════════════════════════════════════════════".postln;
 "Conv engine (Lerdahl masking) ready".postln;
-"  tension 0.0 → sorgente intatta".postln;
-"  tension 1.0 → sorgente irriconoscibile".postln;
+"    tension 0.0 → source intact".postln;
+"    tension 1.0 → source unrecognizable".postln;
 "  ~r_setTension.(0.8) — aggiorna solo tension (no synth rebuild)".postln;
 "  ~r_gesture.(\"Geräusch\", 1.0, 90) — cambio categoria + tension".postln;
 "═══════════════════════════════════════════════════════════════".postln;
@@ -445,7 +445,7 @@ AppClock.sched(0.1, {
 	tensionDisp = StaticText();
 	catGrid     = HLayout();
 
-	// Parametri esposti nell'UI — subset di ~conv_params per categoria
+	// Parameters exposed in UI — subset of ~conv_params per category
 	// [key, label, min, max, step, isExp, paramIdx]
 	paramDefs = [
 		[\irLen,      "IR len (s)",      0.05, 8.0,  0.05, true,  0],
@@ -471,15 +471,15 @@ AppClock.sched(0.1, {
 	);
 	layout.add(
 		StaticText()
-		.string_("tension 0 → dry  ·  tension 1 → irriconoscibile")
+		.string_("tension 0 → dry  ·  tension 1 → unrecognizable")
 		.font_(Font("Courier New", 8))
 		.stringColor_(Color(0.3, 0.3, 0.3))
 		.align_(\center)
 	);
 
-	// ── Categoria attiva (aggiornata da ~r_gesture) ─────────────────────────
+	// ── Active category (aggiornata da ~r_gesture) ─────────────────────────
 	catDisplay = StaticText()
-		.string_("— in attesa —")
+		.string_("— waiting —")
 		.font_(Font("Georgia", 13, italic: true))
 		.stringColor_(Color(0.5, 0.5, 0.5))
 		.align_(\center);
@@ -512,14 +512,14 @@ AppClock.sched(0.1, {
 	tensionRow.add(tensionDisp);
 	layout.add(tensionRow);
 
-	// ── Separatore ──────────────────────────────────────────────────────────
+	// ── Separator ──────────────────────────────────────────────────────────
 	layout.add(StaticText()
 		.string_("────────────────────────────")
 		.stringColor_(dimCol).font_(monoS).align_(\center));
 
-	// ── Bottoni categoria ────────────────────────────────────────────────────
+	// ── Category buttons ────────────────────────────────────────────────────
 	layout.add(StaticText()
-		.string_("categoria IR")
+		.string_("IR category")
 		.font_(monoS).stringColor_(dimCol).align_(\left));
 
 	catGrid.spacing = 2;
@@ -540,7 +540,7 @@ AppClock.sched(0.1, {
 				p = ~conv_params[cat];
 				catBtns.do { |ob| if(ob !== btn) { ob.value_(0) } };
 				currentCat = cat;
-				// Aggiorna display categoria attiva
+				// Update active category display
 				btnC = Dictionary[
 					"Klang"     -> Color(0.29, 0.56, 0.85),
 					"Farbklang" -> Color(0.36, 0.72, 0.36),
@@ -557,7 +557,7 @@ AppClock.sched(0.1, {
 				if(~r_hudCatDisplay.notNil) {
 					{ ~r_hudCatDisplay.string_(cat).stringColor_(btnCol) }.defer;
 				};
-				// Aggiorna slider ai valori della categoria selezionata
+				// Update sliders to selected category values
 				paramDefs.do { |pd|
 					var key    = pd[0];
 					var mn     = pd[2];
@@ -584,7 +584,7 @@ AppClock.sched(0.1, {
 		.string_("────────────────────────────")
 		.stringColor_(dimCol).font_(monoS).align_(\center));
 
-	// ── Sliders parametri ────────────────────────────────────────────────────
+	// ── Parameter sliders ────────────────────────────────────────────────────
 	paramDefs.do { |pd|
 		var key    = pd[0];
 		var label  = pd[1];
@@ -629,7 +629,7 @@ AppClock.sched(0.1, {
 		.string_("────────────────────────────")
 		.stringColor_(dimCol).font_(monoS).align_(\center));
 
-	// ── Bottoni azione ───────────────────────────────────────────────────────
+	// ── Action buttons ───────────────────────────────────────────────────────
 	layout.add(Button()
 		.states_([["APPLY + REGEN IR", Color.white, Color(0.08,0.25,0.08)]])
 		.font_(monoSB)
@@ -656,7 +656,7 @@ AppClock.sched(0.1, {
 		})
 	);
 
-	// ── Init slider a Neutro ─────────────────────────────────────────────────
+	// ── Init sliders to Neutro ─────────────────────────────────────────────────
 	{
 		var p = ~conv_params["Neutro"];
 		catBtns["Neutro"].value_(1);
