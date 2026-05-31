@@ -43,7 +43,8 @@ SynthDef(\r_gate, {
 ~r_hudGateLevel = 1.0;
 ~r_flucoUpdateOrig = ~r_flucoUpdate;
 ~r_flucoUpdate = { |flucoTension|
-	var gv = ~r_hudGateLevel ? 1.0;
+	var gv;
+	gv = ~r_hudGateLevel ? 1.0;
 	~r_flucoUpdateOrig.(flucoTension * gv);
 };
 
@@ -87,9 +88,10 @@ if(~r_score.notNil) {
 
 // Avanza al gesto idx e chiama ~r_gesture globalmente
 ~r_hudAdvanceGesture = { |idx|
-	var g = ~r_hudGestures[idx];
+	var g, tension;
+	g = ~r_hudGestures[idx];
 	if(g.notNil) {
-		var tension = ~r_hudManualTension ?? g[\tension];
+		tension = ~r_hudManualTension ?? g[\tension];
 		~r_timerGestIdx = idx;
 		AppClock.sched(0, {
 			~r_gesture.(g[\cat], tension, g[\azimuth]);
@@ -112,8 +114,9 @@ if(~r_score.notNil) {
 
 		~r_timerRoutine = Routine({
 			~r_hudGestures.size.do { |i|
-				var g       = ~r_hudGestures[i];
-				var gestDur = g[\tEnd] - g[\tStart];
+				var g, gestDur;
+				g       = ~r_hudGestures[i];
+				gestDur = g[\tEnd] - g[\tStart];
 				~r_hudAdvanceGesture.(i);
 				gestDur.wait;
 			};
@@ -147,26 +150,121 @@ if(~r_score.notNil) {
 	"═══ REMNANT stop ═══".postln;
 };
 
+// ── Stereo fold per cuffia ────────────────────────────────────────────────────
+SynthDef(\r_stereoFold, {
+	var octo, wL, wR, sigL, sigR;
+	octo = In.ar(0, 8);
+	wL   = [0.71, 0.5,  0.0,  0.0,  0.35, 0.71, 1.0,  1.0];
+	wR   = [0.71, 1.0,  1.0,  0.71, 0.35, 0.0,  0.0,  0.5];
+	sigL = Mix.ar(octo * wL);
+	sigR = Mix.ar(octo * wR);
+	Out.ar(0, [sigL, sigR] * 0.5);
+}).add;
+
+~r_foldSynth = nil;
+
+~r_foldStart = {
+	~r_foldSynth = Synth(\r_stereoFold, target: s, addAction: \addToTail);
+	"● Stereo fold ON (cuffia)".postln;
+};
+
+~r_foldStop = {
+	if(~r_foldSynth.notNil) { ~r_foldSynth.free; ~r_foldSynth = nil };
+	"■ Stereo fold OFF (diffusori)".postln;
+};
+
+// ── Registrazione ────────────────────────────────────────────────────────────
+SynthDef(\r_rec, {
+	|bufnum=0|
+	var sig = Mix.ar(SoundIn.ar([0,1,2,3])) / 4.0;
+	DiskOut.ar(bufnum, sig ! 2);
+}).add;
+
+~r_recSynth = nil; ~r_recBuf = nil; ~r_recPath = nil;
+
+~r_recStart = {
+	var ts   = Date.getDate.format("%Y%m%d_%H%M%S");
+	var path = Platform.userHomeDir ++ "/Desktop/remnant_" ++ ts ++ ".aiff";
+	~r_recPath = path;
+	~r_recBuf  = Buffer.alloc(s, 65536, 2);
+	~r_recBuf.write(path, "AIFF", "float", 0, 0, true);
+	~r_recSynth = Synth(\r_rec, [\bufnum, ~r_recBuf.bufnum],
+	              target: ~r_gProc, addAction: \addToTail);
+	("● REC → " ++ path).postln;
+};
+
+~r_recStop = {
+	if(~r_recSynth.notNil) { ~r_recSynth.free; ~r_recSynth = nil };
+	if(~r_recBuf.notNil)   { ~r_recBuf.close; ~r_recBuf.free; ~r_recBuf = nil };
+	("■ REC stop").postln;
+};
+
+// ── Stereo fold per cuffia ────────────────────────────────────────────────────
+SynthDef(\r_stereoFold, {
+	var octo, wL, wR, sigL, sigR;
+	octo = In.ar(0, 8);
+	wL   = [0.71, 0.5,  0.0,  0.0,  0.35, 0.71, 1.0,  1.0];
+	wR   = [0.71, 1.0,  1.0,  0.71, 0.35, 0.0,  0.0,  0.5];
+	sigL = Mix.ar(octo * wL);
+	sigR = Mix.ar(octo * wR);
+	Out.ar(0, [sigL, sigR] * 0.5);
+}).add;
+
+~r_foldSynth = nil;
+~r_foldStart = { ~r_foldSynth = Synth(\r_stereoFold, target: s, addAction: \addToTail); "● Fold ON".postln };
+~r_foldStop  = { if(~r_foldSynth.notNil) { ~r_foldSynth.free; ~r_foldSynth = nil }; "■ Fold OFF".postln };
+
 "HUD Block 1 OK — evaluate Block 2 to open window".postln;
 )
 
 
+
+
 // ═══════════════════════════════════════════════════════════════════════════
-// BLOCK 2 — HUD window
+// BLOCK 2 — HUD window  (controllo manuale per performance)
 // ═══════════════════════════════════════════════════════════════════════════
 (
-var win       = Window("REMNANT", Rect(20, 20, 260, 420), resizable: false)
-                .background_(Color(0.08, 0.08, 0.08, 0.92))
-                .alwaysOnTop_(true);
-var layout    = VLayout();
-var accentCol = Color(0.22, 0.55, 0.9);
-var dimCol    = Color(0.45, 0.45, 0.45);
-var fgCol     = Color.white;
-var greenCol  = Color(0.2, 0.7, 0.3);
-var redCol    = Color(0.9, 0.3, 0.1);
-var monoFont  = Font("Courier New", 10);
-var monoSmall = Font("Courier New", 9);
-var makeSlider = { |labelStr, knobCol|
+var win, layout, accentCol, dimCol, fgCol, greenCol, redCol, monoFont, monoSmall;
+var sep, catBtns, activeCatLabel;
+var tensRow, tensSlider, tensVal;
+var flucoBar, flucoVal, flucoRow;
+var finalTBar, finalTVal, finalTRow;
+var gateMeter, thrRow, thrSlider, thrVal;
+var relRow, relSlider, relVal;
+var xfRow, xfSlider, xfVal;
+var volRow, volSlider, volVal;
+var panicBtn, hudRoutine, r, makeSlider;
+var catColors, cats, row1, row2;
+var recBtn, recLabel, foldBtn;
+
+// ── Init variabili ────────────────────────────────────────────────────────────
+win       = Window("REMNANT", Rect(20, 20, 280, 650), resizable: false)
+            .background_(Color(0.07, 0.07, 0.07, 0.95))
+            .alwaysOnTop_(true);
+layout    = VLayout();
+accentCol = Color(0.22, 0.55, 0.9);
+dimCol    = Color(0.45, 0.45, 0.45);
+fgCol     = Color.white;
+greenCol  = Color(0.2, 0.7, 0.3);
+redCol    = Color(0.9, 0.3, 0.1);
+monoFont  = Font("Courier New", 10);
+monoSmall = Font("Courier New", 9);
+catBtns   = Dictionary.new;
+
+catColors = Dictionary[
+	"Klang"     -> Color(0.29, 0.56, 0.85),
+	"Farbklang" -> Color(0.36, 0.72, 0.36),
+	"Geräusch"  -> Color(0.87, 0.36, 0.36),
+	"Kadenz"    -> Color(0.73, 0.46, 0.09),
+	"Textur"    -> Color(0.61, 0.35, 0.71),
+	"Stille"    -> Color(0.6,  0.6,  0.6 ),
+	"Neutro"    -> Color(0.45, 0.45, 0.45),
+];
+cats = ["Klang", "Farbklang", "Geräusch", "Kadenz", "Textur", "Stille", "Neutro"];
+row1 = HLayout();
+row2 = HLayout();
+
+makeSlider = { |labelStr, knobCol|
 	var row = HLayout();
 	var lbl = StaticText().string_(labelStr).font_(monoFont)
 	          .stringColor_(dimCol).fixedWidth_(88);
@@ -179,23 +277,14 @@ var makeSlider = { |labelStr, knobCol|
 	row.add(lbl); row.add(sl); row.add(val);
 	[row, sl, val]
 };
-var sep = {
+sep = {
 	StaticText().string_("─────────────────────────")
 	.stringColor_(dimCol).font_(monoFont).align_(\center)
 };
-var gestLabel, catLabel, progressBar, timeLabel;
-var startBtn, stopBtn;
-var tensRow, tensSlider, tensVal;
-var gateMeter;
-var thrRow,  thrSlider,  thrVal;
-var relRow,  relSlider,  relVal;
-var xfRow,   xfSlider,   xfVal;
-var volRow,  volSlider,  volVal;
-var panicBtn, hudRoutine, r;
 
 win.layout = layout;
 layout.margins = [12, 12, 12, 12];
-layout.spacing = 6;
+layout.spacing = 5;
 
 // ── Titolo ────────────────────────────────────────────────────────────────────
 layout.add(
@@ -204,61 +293,55 @@ layout.add(
 	.stringColor_(dimCol).align_(\center)
 );
 
-// ── Gesto corrente / totale ───────────────────────────────────────────────────
-gestLabel = StaticText().string_("— / —")
-            .font_(Font("Courier New", 14, bold: true))
-            .stringColor_(accentCol).align_(\center);
-layout.add(gestLabel);
+// ── Categoria attiva ──────────────────────────────────────────────────────────
+activeCatLabel = StaticText()
+	.string_("— in attesa —")
+	.font_(Font("Georgia", 15, italic: true))
+	.stringColor_(dimCol).align_(\center);
+layout.add(activeCatLabel);
 
-// ── Categoria Lachenmann ──────────────────────────────────────────────────────
-catLabel = StaticText().string_("—")
-           .font_(Font("Georgia", 11, italic: true))
-           .stringColor_(fgCol).align_(\center);
-layout.add(catLabel);
-
-// ── Progress bar del gesto ────────────────────────────────────────────────────
-progressBar = UserView()
-              .fixedHeight_(6)
-              .background_(Color(0.12, 0.12, 0.12))
-              .drawFunc_({ |v|
-                  var prog = progressBar.getProperty(\progress) ? 0.0;
-                  var w    = v.bounds.width * prog;
-                  Pen.color_(accentCol);
-                  Pen.fillRect(Rect(0, 0, w, v.bounds.height));
-              });
-progressBar.setProperty(\progress, 0.0);
-layout.add(progressBar);
-
-// ── Tempo trascorso / totale ──────────────────────────────────────────────────
-timeLabel = StaticText().string_("0.0 / 0.0 s")
-            .font_(monoSmall).stringColor_(dimCol).align_(\center);
-layout.add(timeLabel);
+// Aggiorna activeCatLabel quando ~r_gesture viene chiamato esternamente
+~r_hudCatDisplay = activeCatLabel;
 
 layout.add(sep.());
 
-// ── START / STOP ──────────────────────────────────────────────────────────────
-layout.add(HLayout(
-	startBtn = Button()
+// ── Bottoni categoria (controllo manuale) ─────────────────────────────────────
+layout.add(
+	StaticText().string_("categoria")
+	.font_(monoSmall).stringColor_(dimCol).align_(\center)
+);
+
+row1.margins = [0,0,0,0]; row1.spacing = 3;
+row2.margins = [0,0,0,0]; row2.spacing = 3;
+
+cats.do { |cat, i|
+	var col = catColors[cat];
+	var btn = Button()
 		.states_([
-			["▶  START", fgCol,    Color(0.1, 0.3, 0.1)],
-			["▶  RUN",   greenCol, Color(0.05, 0.2, 0.05)],
+			[cat, Color(0.3, 0.3, 0.3), Color(0.12, 0.12, 0.12)],
+			[cat, Color(0.07, 0.07, 0.07), col],
 		])
-		.font_(Font("Courier New", 10, bold: true))
-		.action_({ |btn|
-			if(btn.value == 1) {
-				~r_hudStart.();
-			} {
-				btn.value_(0);
-			};
-		}),
-	stopBtn = Button()
-		.states_([["■  STOP", redCol, Color(0.2, 0.05, 0.05)]])
-		.font_(Font("Courier New", 10, bold: true))
-		.action_({
-			~r_hudStop.();
-			startBtn.value_(0);
-		}),
-));
+		.font_(Font("Courier New", 9, bold: true))
+		.fixedHeight_(32);
+
+	btn.action = { |b|
+		catBtns.do { |ob| if(ob !== btn) { ob.value_(0) } };
+		if(b.value == 1) {
+			var t  = ~r_gestTension ? 0.3;
+			var az = ~r_currentAz  ? 180.0;
+			~r_gesture.(cat, t, az);
+			{ activeCatLabel.string_(cat).stringColor_(col) }.defer;
+		} {
+			{ activeCatLabel.string_("—").stringColor_(dimCol) }.defer;
+		};
+	};
+
+	catBtns[cat] = btn;
+	if(i < 4) { row1.add(btn) } { row2.add(btn) };
+};
+
+layout.add(row1);
+layout.add(row2);
 
 layout.add(sep.());
 
@@ -268,68 +351,109 @@ tensRow = r[0]; tensSlider = r[1]; tensVal = r[2];
 tensSlider.value_(0.3);
 tensVal.string_("0.30");
 tensSlider.action = { |sl|
-	var t = sl.value.round(0.01);
+	var t, entry;
+	t = sl.value.round(0.01);
 	tensVal.string_(t.asString.padLeft(4, "0"));
 	~r_hudManualTension = t;
 	~r_gestTension = t;
-	if(~r_synths.notNil) {
-		~r_nFields.do { |i|
-			var entry = ~r_synths[i];
-			if(entry.notNil and: { entry[0].notNil }) {
-				try { entry[0].set(\tension,
-					(~r_gestTension + (~r_flucoTension * 0.4)).clip(0,1)) };
+	if(~r_setTension.notNil) {
+		~r_setTension.(t);
+	} {
+		if(~r_synths.notNil) {
+			~r_nFields.do { |i|
+				entry = ~r_synths[i];
+				if(entry.notNil and: { entry[0].notNil }) {
+					try { entry[0].set(\tension,
+						(~r_gestTension + (~r_flucoTension * 0.4)).clip(0,1)) };
+				};
 			};
 		};
 	};
 };
-// alt+click → torna al valore del gesto corrente dalla score
-tensSlider.mouseDownAction = { |sl, x, y, mod|
-	if(mod.isAlt) {
-		var g  = ~r_hudGestures[~r_timerGestIdx ? 0];
-		var sv = if(g.notNil) { g[\tension] } { 0.3 };
-		~r_hudManualTension = nil;
-		sl.value_(sv);
-		tensVal.string_("auto");
-	};
-};
 layout.add(tensRow);
 
+// ── FluCoMa tension ───────────────────────────────────────────────────────────
+flucoRow = HLayout();
+flucoRow.margins = [0,0,0,0]; flucoRow.spacing = 4;
+flucoBar = UserView()
+	.fixedHeight_(10)
+	.background_(Color(0.12, 0.12, 0.12))
+	.drawFunc_({ |v|
+		var fv = flucoBar.getProperty(\flucoVal) ? 0.0;
+		var w  = v.bounds.width * fv;
+		Pen.color_(Color(fv, 1.0 - fv, 0.2));
+		Pen.fillRect(Rect(0, 0, w, v.bounds.height));
+	});
+flucoBar.setProperty(\flucoVal, 0.0);
+flucoVal = StaticText().string_("0.00")
+	.font_(monoSmall).stringColor_(Color(0.4, 0.8, 0.3))
+	.fixedWidth_(36).align_(\right);
+flucoRow.add(StaticText().string_("FluCoMa t")
+	.font_(monoSmall).stringColor_(dimCol).fixedWidth_(88));
+flucoRow.add(flucoBar);
+flucoRow.add(flucoVal);
+layout.add(flucoRow);
+
+// ── Tension finale ────────────────────────────────────────────────────────────
+finalTRow = HLayout();
+finalTRow.margins = [0,0,0,0]; finalTRow.spacing = 4;
+finalTBar = UserView()
+	.fixedHeight_(10)
+	.background_(Color(0.12, 0.12, 0.12))
+	.drawFunc_({ |v|
+		var fv = finalTBar.getProperty(\finalTVal) ? 0.0;
+		var w  = v.bounds.width * fv;
+		Pen.color_(Color(fv, 0.3, 1.0 - fv));
+		Pen.fillRect(Rect(0, 0, w, v.bounds.height));
+	});
+finalTBar.setProperty(\finalTVal, 0.0);
+finalTVal = StaticText().string_("0.00")
+	.font_(monoSmall).stringColor_(Color(0.5, 0.3, 0.9))
+	.fixedWidth_(36).align_(\right);
+finalTRow.add(StaticText().string_("t finale")
+	.font_(monoSmall).stringColor_(dimCol).fixedWidth_(88));
+finalTRow.add(finalTBar);
+finalTRow.add(finalTVal);
+layout.add(finalTRow);
+
+layout.add(sep.());
+
 // ── Gate meter ────────────────────────────────────────────────────────────────
-layout.add(
-	HLayout(
-		StaticText().string_("gate").font_(monoFont).stringColor_(dimCol),
-		gateMeter = UserView()
-		            .fixedHeight_(14)
-		            .background_(Color(0.12, 0.12, 0.12))
-		            .drawFunc_({ |v|
-		                var gv  = gateMeter.getProperty(\gateVal) ? 0.0;
-		                var w   = v.bounds.width * gv;
-		                var col = if(gv > 0.7) { redCol } { greenCol };
-		                Pen.color_(col);
-		                Pen.fillRect(Rect(0, 0, w, v.bounds.height));
-		            })
-	)
-);
+layout.add(HLayout(
+	StaticText().string_("gate").font_(monoFont).stringColor_(dimCol),
+	gateMeter = UserView()
+		.fixedHeight_(14)
+		.background_(Color(0.12, 0.12, 0.12))
+		.drawFunc_({ |v|
+			var gv  = gateMeter.getProperty(\gateVal) ? 0.0;
+			var w   = v.bounds.width * gv;
+			var col = if(gv > 0.7) { redCol } { greenCol };
+			Pen.color_(col);
+			Pen.fillRect(Rect(0, 0, w, v.bounds.height));
+		})
+));
 gateMeter.setProperty(\gateVal, 0.0);
 
-r = makeSlider.("gate thr (dB)", Color(0.6,0.6,0.6));
+r = makeSlider.("gate thr (dB)", Color(0.6, 0.6, 0.6));
 thrRow = r[0]; thrSlider = r[1]; thrVal = r[2];
 thrSlider.value_((-42 - (-80)) / 80);
 thrVal.string_("-42");
 thrSlider.action = { |sl|
-	var db = ((sl.value * 80) - 80).round(1);
+	var db;
+	db = ((sl.value * 80) - 80).round(1);
 	thrVal.string_(db.asString);
 	~r_gateThresh = db;
 	if(~r_gateSynth.notNil) { try { ~r_gateSynth.set(\thresh, db) } };
 };
 layout.add(thrRow);
 
-r = makeSlider.("gate rel (s)", Color(0.6,0.6,0.6));
+r = makeSlider.("gate rel (s)", Color(0.6, 0.6, 0.6));
 relRow = r[0]; relSlider = r[1]; relVal = r[2];
 relSlider.value_(1.2 / 8.0);
 relVal.string_("1.2");
 relSlider.action = { |sl|
-	var rv = (sl.value * 8.0).round(0.1);
+	var rv;
+	rv = (sl.value * 8.0).round(0.1);
 	relVal.string_(rv.asString);
 	~r_gateRelease = rv;
 	if(~r_gateSynth.notNil) { try { ~r_gateSynth.set(\releaseTime, rv) } };
@@ -338,28 +462,30 @@ layout.add(relRow);
 
 layout.add(sep.());
 
-r = makeSlider.("xfade (s)", Color(0.6,0.6,0.6));
+r = makeSlider.("xfade (s)", Color(0.6, 0.6, 0.6));
 xfRow = r[0]; xfSlider = r[1]; xfVal = r[2];
-xfSlider.value_(3.0 / 12.0);
-xfVal.string_("3.0");
+xfSlider.value_(2.0 / 12.0);
+xfVal.string_("2.0");
 xfSlider.action = { |sl|
-	var xv = (sl.value * 12.0).round(0.1).max(0.1);
+	var xv;
+	xv = (sl.value * 12.0).round(0.1).max(0.1);
 	xfVal.string_(xv.asString);
 	~r_xfadeTime = xv;
 };
 layout.add(xfRow);
 
-r = makeSlider.("master vol", Color(0.6,0.6,0.6));
+r = makeSlider.("master vol", Color(0.6, 0.6, 0.6));
 volRow = r[0]; volSlider = r[1]; volVal = r[2];
 volSlider.value_(1.0 / 3.0);
 volVal.string_("1.0");
 volSlider.action = { |sl|
-	var vv = (sl.value * 3.0).round(0.01);
+	var vv, entry;
+	vv = (sl.value * 3.0).round(0.01);
 	volVal.string_(vv.asString);
 	~r_masterVol = vv;
 	if(~r_synths.notNil) {
 		~r_nFields.do { |i|
-			var entry = ~r_synths[i];
+			entry = ~r_synths[i];
 			if(entry.notNil and: { entry[2].notNil }) {
 				try { entry[2].set(\amp, vv) };
 			};
@@ -370,77 +496,74 @@ layout.add(volRow);
 
 layout.add(sep.());
 
+// ── Monitor cuffia ────────────────────────────────────────────────────────────
+foldBtn = Button()
+	.states_([
+		["◎  CUFFIA",    Color(0.5, 0.5, 0.5), Color(0.12, 0.12, 0.12)],
+		["◎  CUFFIA ON", Color(0.1, 0.1, 0.1), Color(0.5,  0.75, 0.3) ],
+	])
+	.font_(Font("Courier New", 9, bold: true));
+foldBtn.action = { |b| if(b.value == 1) { ~r_foldStart.() } { ~r_foldStop.() } };
+layout.add(foldBtn);
+
+// ── REC ───────────────────────────────────────────────────────────────────────
+recBtn = Button()
+	.states_([
+		["● REC",  Color(1.0, 0.3, 0.3), Color(0.18, 0.05, 0.05)],
+		["■ STOP", Color(1.0, 0.6, 0.0), Color(0.22, 0.12, 0.0) ],
+	])
+	.font_(Font("Courier New", 10, bold: true));
+recLabel = StaticText()
+	.string_("")
+	.font_(Font("Courier New", 8))
+	.stringColor_(Color(0.45, 0.45, 0.45))
+	.align_(\center);
+recBtn.action = { |b|
+	if(b.value == 1) {
+		~r_recStart.();
+		{ recLabel.string_("● registrazione in corso") }.defer;
+	} {
+		~r_recStop.();
+		{ recLabel.string_("✓ salvato su Desktop") }.defer;
+	};
+};
+layout.add(recBtn);
+layout.add(recLabel);
+
 // ── PANIC ─────────────────────────────────────────────────────────────────────
 panicBtn = Button()
-	.states_([["PANIC", Color.red, Color(0.15,0.05,0.05)]])
+	.states_([["PANIC", Color.red, Color(0.15, 0.05, 0.05)]])
 	.font_(Font("Courier New", 10, bold: true))
 	.action_({
-		~r_hudStop.();
-		startBtn.value_(0);
 		if(~r_panic.notNil) { ~r_panic.() };
+		catBtns.do { |b| b.value_(0) };
+		if(recBtn.value == 1)  { ~r_recStop.();  recBtn.value_(0);  { recLabel.string_("") }.defer };
+		if(foldBtn.value == 1) { ~r_foldStop.(); foldBtn.value_(0) };
+		{ activeCatLabel.string_("—").stringColor_(dimCol) }.defer;
 	});
 layout.add(panicBtn);
 
-// ── Aggiorna display (gesto, categoria, tension) ──────────────────────────────
-~r_hudUpdateDisplay = {
-	var nGest   = ~r_hudGestures.size;
-	var idx     = ~r_timerGestIdx ? 0;
-	var g       = ~r_hudGestures[idx];
-	var cat     = if(g.notNil) { g[\cat] }     { "—" };
-	var tension = if(g.notNil) { g[\tension] } { 0.3 };
-	var gLabel  = if(~r_timerRunning) {
-		(idx + 1).asString ++ " / " ++ nGest
-	} { "— / " ++ nGest };
-	{
-		gestLabel.string_(gLabel);
-		catLabel.string_(cat);
-		if(~r_hudManualTension.isNil) {
-			tensSlider.value_(tension);
-			tensVal.string_(tension.round(0.01).asString.padLeft(4,"0"));
-		};
-	}.defer;
-};
-
-// ── Routine di refresh: gate + progress bar + tempo ───────────────────────────
+// ── Routine di refresh ────────────────────────────────────────────────────────
 hudRoutine = Routine({
-	var gv, elapsed, g, gestDur, prog, gestElapsed;
+	var gv, ft, gt, fin;
 	loop {
 		0.08.wait;
-
-		// gate meter
-		gv = if(~r_gateBus.notNil) { ~r_gateBus.getSynchronous } { 1.0 };
+		gv  = if(~r_gateBus.notNil) { ~r_gateBus.getSynchronous } { 1.0 };
 		~r_hudGateLevel = gv;
-
-		// progress bar e display tempo
-		if(~r_timerRunning and: { ~r_hudGestures.size > 0 }) {
-			var idx = ~r_timerGestIdx ? 0;
-			g           = ~r_hudGestures[idx];
-			gestDur     = if(g.notNil) { (g[\tEnd] - g[\tStart]).max(0.001) } { 1.0 };
-			elapsed     = thisThread.seconds - ~r_timerStartTime;
-			gestElapsed = elapsed - (if(g.notNil) { g[\tStart] } { 0.0 });
-			prog        = (gestElapsed / gestDur).clip(0, 1);
-		} {
-			elapsed = 0.0;
-			prog    = 0.0;
-		};
-
+		ft  = ~r_flucoTension ? 0.0;
+		gt  = ~r_gestTension  ? 0.0;
+		fin = (gt + (ft * 0.4)).clip(0, 1);
 		{
-			gateMeter.setProperty(\gateVal, gv);
-			gateMeter.refresh;
-			progressBar.setProperty(\progress, prog);
-			progressBar.refresh;
-			timeLabel.string_(
-				elapsed.round(0.1).asString ++ " / "
-				++ ~r_hudDuration.round(0.1).asString ++ " s"
-			);
+			gateMeter.setProperty(\gateVal, gv); gateMeter.refresh;
+			flucoBar.setProperty(\flucoVal, ft); flucoBar.refresh;
+			flucoVal.string_(ft.round(0.01).asString);
+			finalTBar.setProperty(\finalTVal, fin); finalTBar.refresh;
+			finalTVal.string_(fin.round(0.01).asString);
 		}.defer;
 	};
 }).play(AppClock);
 
-win.onClose = {
-	hudRoutine.stop;
-	if(~r_timerRoutine.notNil) { ~r_timerRoutine.stop };
-};
+win.onClose = { hudRoutine.stop; if(~r_recSynth.notNil) { ~r_recStop.() }; if(~r_foldSynth.notNil) { ~r_foldStop.() } };
 win.front;
-"HUD open.  ▶ START per avviare · alt+click tension → score value".postln;
+"HUD aperto. Clicca una categoria per attivarla.".postln;
 )

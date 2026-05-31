@@ -1,0 +1,27 @@
+REMNANT — ePlayer Setup Guide
+================================================
+
+One ePlayer instance, one voice, N programs.
+Orchestra file: contimbre_remnant.cePlayerOrc
+BPM: 60
+
+In Reaper:
+  1. Create a new track named 'ePlayer'
+  2. Add ePlayer as VSTi on that track
+  3. Load contimbre_remnant.cePlayerOrc
+  4. For each MIDI track: right-click → MIDI send → ePlayer track
+  5. Save the project
+
+MIDI Program Change mapping:
+
+  Field    Program    ePlayer program name
+  ─────    ───────    ────────────────────
+  Field 1    PC 0        voice1
+  Field 2    PC 1        field_01
+
+Each MIDI track already contains a Program Change at beat 0.
+ePlayer will switch program automatically when Reaper plays
+each track.
+
+Note: ePlayer must have 'Chase CC/PC' enabled to switch
+programs correctly during playback.

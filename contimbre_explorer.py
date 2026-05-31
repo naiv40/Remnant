@@ -424,6 +424,11 @@ def home_layout():
                 "fontFamily": "monospace", "fontSize": "10px",
                 "color": "#378ADD", "minHeight": "14px", "marginBottom": "4px",
             }),
+            _btn("Export HTML score", "html-score-btn", outline=True),
+            html.Div(id="html-score-status", style={
+                "fontFamily": "monospace", "fontSize": "10px",
+                "color": "#1D9E75", "minHeight": "14px", "marginBottom": "4px",
+            }),
             html.Div(id="export-status", style={
                 "fontFamily": "monospace", "fontSize": "10px",
                 "color": "#5CB85C", "minHeight": "16px", "marginBottom": "16px",
@@ -551,6 +556,8 @@ app.layout = html.Div([
     dcc.Store(id="score-ready", data=False),
     # Bottone trigger nel root per generate_score
     html.Button(id="score-btn-root", n_clicks=0,
+                style={"display": "none"}),
+    html.Button(id="html-score-btn-root", n_clicks=0,
                 style={"display": "none"}),
 
     # Homepage — always in DOM, visible by default
@@ -2071,6 +2078,31 @@ def generate_score(n_clicks, gestures_data, df_store, duration, dynform_store):
 
 
 @app.callback(
+    Output("html-score-status", "children"),
+    Input("html-score-btn-root", "n_clicks"),
+    prevent_initial_call=True,
+)
+def export_html_score(n_clicks):
+    import subprocess, os as _os
+    score_path = SCORE_PATH
+    if not _os.path.exists(score_path):
+        return "Generate score first."
+    script = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "partitura_html.py")
+    if not _os.path.exists(script):
+        return "partitura_html.py not found in same folder."
+    try:
+        result = subprocess.run(
+            ["python3", script],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            return "✓ partitura_remnant.html → Desktop"
+        return f"Error: {result.stderr[:80]}"
+    except Exception as e:
+        return f"Error: {str(e)[:80]}"
+
+
+@app.callback(
     Output("eplayer-status", "children"),
     Input("eplayer-btn",     "n_clicks"),
     State("path-store",      "data"),
@@ -2269,6 +2301,13 @@ app.clientside_callback(
     "function(n) { return n || 0; }",
     Output("score-btn-root", "n_clicks"),
     Input("score-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+app.clientside_callback(
+    "function(n) { return n || 0; }",
+    Output("html-score-btn-root", "n_clicks"),
+    Input("html-score-btn", "n_clicks"),
     prevent_initial_call=True,
 )
 

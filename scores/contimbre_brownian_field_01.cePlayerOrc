@@ -1,0 +1,1604 @@
+conTimbre_eplayer_orchestra V2.0
+general: {
+  master_gain  0.000
+  num_models:  5
+  num_voices:  1
+  reverb_is_on:  false
+  reverb_gain:   0.000
+  reverb_time:   1.500
+  reverb_roomsize:   80.00
+  reverb_damping:   0.500
+}
+reverb_outputs: {
+  out: 0
+  out: 1
+}
+models: {
+  {
+    group:      "percussion"
+    family:     "mallet instruments"
+    instrument: "vibraphone"
+  }
+  {
+    group:      "percussion"
+    family:     "skin instruments"
+    instrument: "shime daiko"
+  }
+  {
+    group:      "percussion"
+    family:     "skin instruments"
+    instrument: "tomtom"
+  }
+  {
+    group:      "percussion"
+    family:     "skin instruments"
+    instrument: "timpani in G"
+  }
+  {
+    group:      "percussion"
+    family:     "chimes"
+    instrument: "nail chimes"
+  }
+}
+voices: {
+  {
+    name: "voice1"
+    color_index:  0
+    num_programs: 1
+    current_midiprogram: 0
+    midichannel: 0
+    gain:  0.000
+    output: C1&2
+    pan:  0.5000
+    solo: false
+    mute: false
+    gain_to_reverb:  0.000
+    programs: {
+      {
+        number: -1
+        name:   "program1"
+        chorus: 1
+        chord_mode:  false
+        number_of_keys: 128
+        keys: {
+          {
+            number: 0
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 1
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 2
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 3
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 4
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 5
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 6
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 7
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 8
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 9
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 10
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 11
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 12
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 13
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 14
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 15
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 16
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 17
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 18
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 19
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 20
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 21
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 22
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 23
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 24
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 25
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 26
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 27
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 28
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 29
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 30
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 31
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 32
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 33
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 34
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 35
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 36
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 37
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 38
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 39
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 40
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 41
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 42
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 43
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 44
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 45
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 46
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 47
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 48
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 49
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 50
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 51
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 52
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 53
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 54
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 55
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 56
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 57
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 58
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 59
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 60
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 61
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 62
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 63
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 64
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 65
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 66
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 67
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 68
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 69
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 70
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 71
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 72
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 73
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 74
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 75
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 76
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 77
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 78
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 79
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 80
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 81
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 82
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 83
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 84
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 85
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 86
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 87
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 88
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 89
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 90
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 91
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 92
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 93
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 94
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 95
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 96
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 97
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 98
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 99
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 100
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 101
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 102
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 103
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 104
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 105
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 106
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 107
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 108
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 109
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 110
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 111
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 112
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 113
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 114
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 115
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 116
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 117
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 118
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 119
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 120
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 121
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+          {
+            number: 122
+            model_index: 3
+            modes_index: 73
+            note_menu_index: 9
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "timpani in G.m134.D3.ppp.Gnt1307"
+            pitch:  50.0000
+          }
+          {
+            number: 123
+            model_index: 2
+            modes_index: 7
+            note_menu_index: 2
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "tomtom.m23.vsize 5.ppp.Dni116"
+            pitch:   0.0000
+          }
+          {
+            number: 124
+            model_index: 1
+            modes_index: 5
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "shime daiko.m148.ppp.Doi38"
+            pitch:   0.0000
+          }
+          {
+            number: 125
+            model_index: 0
+            modes_index: 3
+            note_menu_index: 15
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "vibraphone.m16.Ab4.ppp.P8v36"
+            pitch:  68.0000
+          }
+          {
+            number: 126
+            model_index: 3
+            modes_index: 39
+            note_menu_index: 9
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "timpani in G.m225.D3.ppp.Gnt1232"
+            pitch:  50.0000
+          }
+          {
+            number: 127
+            model_index: 4
+            modes_index: 0
+            note_menu_index: 0
+            detune:  0.0000
+            playing_mode: 1
+            gain:  0.000
+            let_vibrate: 0.1
+            filename: "nail chimes.m127.p.Sei2854"
+            pitch:   0.0000
+          }
+        }
+      }
+    }
+  }
+}

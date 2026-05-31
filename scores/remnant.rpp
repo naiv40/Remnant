@@ -1,0 +1,270 @@
+<REAPER_PROJECT 0.1 "7.69/OSX64-clang" 0 0
+  <NOTES 0 2
+  >
+  RIPPLE 0 0
+  AUTOXFADE 4488
+  ENVATTACH 1
+  PANLAW 0.59566214
+  PROJOFFS 0 0 0
+  GRID 3455 8 1 8 1 0 0 0
+  TIMEMODE 1 5 -1 30 0 0 -1 0
+  PANMODE 5
+  CURSOR 0
+  ZOOM 100 0 0
+  SAMPLERATE 48000 0 0
+  TEMPO 60 4 4 0
+  PLAYRATE 1 0 0.25 4
+  SELECTION 0 0
+  MASTERAUTOMODE 0
+  MASTERTRACKHEIGHT 0 0
+  MASTERPEAKCOL 16576
+  MASTER_NCH 2 2
+  MASTER_VOLUME 1 0 -1 -1 1
+  MASTER_PANMODE 3
+  MASTER_FX 1
+  MASTER_SEL 0
+  <PROJBAY
+  >
+  <TRACK {42ADCEA8-8BD2-4051-BE8A-18CE9622008B}
+    NAME "ePlayer"
+    PEAKCOL 16711422
+    BEAT -1
+    AUTOMODE 0
+    PANLAWFLAGS 3
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    IPHASE 0
+    PLAYOFFS 0 1
+    ISBUS 0 0
+    BUSCOMP 0 0 0 0 0
+    SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0 0
+    SEL 0
+    REC 0 0 1 0 0 0 0 0
+    VU 2
+    TRACKHEIGHT 80 0 0 0 0 0 0
+    NCHAN 2
+    FX 1
+    TRACKID {42ADCEA8-8BD2-4051-BE8A-18CE9622008B}
+    PERF 0
+    MIDIOUT -1
+    MAINSEND 1 0
+    AUXRECV 1 0 1 0 0 0 0 0 0 0
+    AUXRECV 2 0 1 0 0 0 0 0 1 1
+  >
+  <TRACK {DE1AC65A-48D6-4862-938F-52579DF11443}
+    NAME "Field 1"
+    PEAKCOL 5963007
+    BEAT -1
+    AUTOMODE 0
+    PANLAWFLAGS 3
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    IPHASE 0
+    PLAYOFFS 0 1
+    ISBUS 0 0
+    BUSCOMP 0 0 0 0 0
+    SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0 0
+    SEL 0
+    REC 0 0 1 0 0 0 0 0
+    VU 2
+    TRACKHEIGHT 80 0 0 0 0 0 0
+    NCHAN 2
+    FX 0
+    TRACKID {DE1AC65A-48D6-4862-938F-52579DF11443}
+    PERF 0
+    MIDIOUT -1
+    MAINSEND 0 0
+    <ITEM
+      POSITION 0
+      SNAPOFFS 0
+      LENGTH 32.850000
+      LOOP 0
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0 0 1 0 0 0
+      MUTE 0 0
+      SEL 1
+      IGUID {D1FEFB5B-4A2C-435D-A166-3AD28DB9D076}
+      IID 1
+      NAME "Field 1"
+      VOLPAN 1 0 1 -1
+      SOFFS 0 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {B9914812-DDDA-463C-B7C9-D7631A42AC7F}
+      <SOURCE MIDI
+        HASDATA 1 960 QN
+        CCINTERP 32
+        POOLEDEVTS {0BE3FECC-AA63-436C-ABEE-7436957CDCC3}
+        <X 0 0 0 0 3 "Field 1"
+          /wNGaWVsZCAx
+        >
+        E 0 c0 00 00
+        E 0 b0 0a 35
+        E 0 b0 0b 19
+        E 0 90 74 36
+        E 1219 b0 0a 36
+        E 0 b0 0b 22
+        E 0 90 75 3b
+        E 432 80 74 36
+        E 1248 b0 0a 2c
+        E 0 b0 0b 2b
+        E 0 90 76 40
+        E 434 80 75 3b
+        E 853 b0 0a 34
+        E 0 b0 0b 35
+        E 0 90 77 45
+        E 816 b0 0a 35
+        E 0 b0 0b 3e
+        E 0 90 78 4a
+        E 467 80 76 40
+        E 694 b0 0a 3a
+        E 0 b0 0b 47
+        E 0 90 79 4f
+        E 1055 80 77 45
+        E 212 b0 0a 39
+        E 0 b0 0b 50
+        E 0 90 7a 54
+        E 1067 80 78 4a
+        E 556 b0 0a 35
+        E 0 b0 0b 5a
+        E 0 90 7b 59
+        E 1008 b0 0a 3a
+        E 0 b0 0b 63
+        E 0 90 7c 5e
+        E 60 80 79 4f
+        E 1723 80 7a 54
+        E 434 b0 0a 32
+        E 0 b0 0b 6c
+        E 0 90 7d 63
+        E 1651 80 7b 59
+        E 1471 80 7c 5e
+        E 2677 b0 0a 34
+        E 0 b0 0b 75
+        E 0 90 7e 68
+        E 2 80 7d 63
+        E 6255 80 7e 68
+        E 2 b0 0a 3c
+        E 0 b0 0b 7f
+        E 0 90 00 6e
+        E 6720 80 00 6e
+        E 480 b0 7b 00
+        CCINTERP 32
+        CHASE_CC_TAKEOFFS 1
+        GUID {B9914812-DDDA-463C-B7C9-D7631A42AC7F}
+        IGNTEMPO 0 60 4 4
+        SRCCOLOR 20
+        EVTFILTER 0 -1 -1 -1 -1 0 0 0 0 -1 -1 -1 -1 0 -1 0 -1 -1
+      >
+    >
+  >
+  <TRACK {2654AC3A-55ED-4DA2-AA3E-5B025CC194F3}
+    NAME "Field 2"
+    PEAKCOL 2263842
+    BEAT -1
+    AUTOMODE 0
+    PANLAWFLAGS 3
+    VOLPAN 1 0 -1 -1 1
+    MUTESOLO 0 0 0
+    IPHASE 0
+    PLAYOFFS 0 1
+    ISBUS 0 0
+    BUSCOMP 0 0 0 0 0
+    SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0 0
+    SEL 0
+    REC 0 0 1 0 0 0 0 0
+    VU 2
+    TRACKHEIGHT 80 0 0 0 0 0 0
+    NCHAN 2
+    FX 0
+    TRACKID {2654AC3A-55ED-4DA2-AA3E-5B025CC194F3}
+    PERF 0
+    MIDIOUT -1
+    MAINSEND 0 0
+    <ITEM
+      POSITION 0
+      SNAPOFFS 0
+      LENGTH 16.889583
+      LOOP 0
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0 0 1 0 0 0
+      MUTE 0 0
+      SEL 1
+      IGUID {4347E128-84D0-47BD-8E87-ADB28B74A739}
+      IID 2
+      NAME "Field 2"
+      VOLPAN 1 0 1 -1
+      SOFFS 0 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {A811DE9A-8751-41BE-8653-5F31792DEDD9}
+      <SOURCE MIDI
+        HASDATA 1 960 QN
+        CCINTERP 32
+        POOLEDEVTS {4D50FECC-AECF-47EC-895D-EBC48842F1AF}
+        <X 0 0 0 0 3 "Field 2"
+          /wNGaWVsZCAy
+        >
+        E 0 c0 01 00
+        E 0 b0 0a 3c
+        E 0 b0 0b 13
+        E 0 90 00 32
+        E 816 b0 0a 35
+        E 0 b0 0b 16
+        E 0 90 78 34
+        E 518 80 00 32
+        E 749 b0 0a 3a
+        E 0 b0 0b 19
+        E 0 90 79 36
+        E 245 80 78 34
+        E 456 b0 0a 3a
+        E 0 b0 0b 1c
+        E 0 90 77 37
+        E 976 80 79 36
+        E 840 80 77 37
+        E 181 b0 0a 34
+        E 0 b0 0b 1e
+        E 0 90 78 38
+        E 1325 b0 0a 33
+        E 0 b0 0b 1f
+        E 0 90 79 39
+        E 586 80 78 38
+        E 930 b0 0a 39
+        E 0 b0 0b 1f
+        E 0 90 7a 39
+        E 446 80 79 39
+        E 668 b0 0a 3a
+        E 0 b0 0b 1e
+        E 0 90 7b 38
+        E 848 80 7a 39
+        E 880 b0 0a 3d
+        E 0 b0 0b 1c
+        E 0 90 7c 37
+        E 183 80 7b 38
+        E 1593 b0 0a 3d
+        E 0 b0 0b 19
+        E 0 90 7d 36
+        E 40 80 7c 37
+        E 1102 b0 0a 3d
+        E 0 b0 0b 16
+        E 0 90 7e 34
+        E 535 80 7d 36
+        E 483 b0 0a 3d
+        E 0 b0 0b 13
+        E 0 90 00 32
+        E 494 80 7e 34
+        E 840 80 00 32
+        E 480 b0 7b 00
+        CCINTERP 32
+        CHASE_CC_TAKEOFFS 1
+        GUID {A811DE9A-8751-41BE-8653-5F31792DEDD9}
+        IGNTEMPO 0 60 4 4
+        SRCCOLOR 21
+        EVTFILTER 0 -1 -1 -1 -1 0 0 0 0 -1 -1 -1 -1 0 -1 0 -1 -1
+      >
+    >
+  >
+  <EXTENSIONS
+  >
+>
