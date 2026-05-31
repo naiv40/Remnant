@@ -214,6 +214,158 @@ SynthDef(\r_stereoFold, {
 ~r_foldStart = { ~r_foldSynth = Synth(\r_stereoFold, target: s, addAction: \addToTail); "● Fold ON".postln };
 ~r_foldStop  = { if(~r_foldSynth.notNil) { ~r_foldSynth.free; ~r_foldSynth = nil }; "■ Fold OFF".postln };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// NanoKONTROL2 MIDI mapping
+//
+// CC assignments (NanoKONTROL2 default template):
+//   Slider 1  (CC 0)  → tension
+//   Slider 2  (CC 1)  → master vol
+//   Slider 3  (CC 2)  → xfade
+//   Slider 4  (CC 3)  → gate thr  (-80 to 0 dB)
+//   Slider 5  (CC 4)  → gate rel  (0 to 8 s)
+//   Knob 1    (CC 16) → tension (duplicate, finer control)
+//   S buttons (CC 32–38) → categories: Klang/Farbklang/Geräusch/Kadenz/Textur/Stille/Neutro
+//   Transport ■ (CC 42) → PANIC
+//   Transport ● (CC 45) → REC toggle
+//   Transport ► (CC 41) → headphone fold toggle
+// ─────────────────────────────────────────────────────────────────────────────
+
+~r_midiResponders = [];
+
+~r_midiSetup = {
+	var cats = ["Klang","Farbklang","Geräusch","Kadenz","Textur","Stille","Neutro"];
+	MIDIClient.init;
+	MIDIIn.connectAll;
+
+	// Slider 1 — tension
+	~r_midiResponders = ~r_midiResponders.add(
+		MIDIFunc.cc({ |val|
+			var t = val / 127.0;
+			~r_gestTension = t;
+			if(~r_setTension.notNil) { ~r_setTension.(t) };
+			if(~r_hudTensSlider.notNil) { { ~r_hudTensSlider.value_(t) }.defer };
+		}, 0)
+	);
+
+	// Knob 1 — tension (CC 16)
+	~r_midiResponders = ~r_midiResponders.add(
+		MIDIFunc.cc({ |val|
+			var t = val / 127.0;
+			~r_gestTension = t;
+			if(~r_setTension.notNil) { ~r_setTension.(t) };
+			if(~r_hudTensSlider.notNil) { { ~r_hudTensSlider.value_(t) }.defer };
+		}, 16)
+	);
+
+	// Slider 2 — master vol (0–3.0)
+	~r_midiResponders = ~r_midiResponders.add(
+		MIDIFunc.cc({ |val|
+			var v = val / 127.0 * 3.0;
+			~r_masterVol = v;
+			if(~r_synths.notNil) {
+				~r_nFields.do { |i|
+					var entry = ~r_synths[i];
+					if(entry.notNil and: { entry[2].notNil }) {
+						try { entry[2].set(mp, v) };
+					};
+				};
+			};
+			if(~r_hudVolSlider.notNil) { { ~r_hudVolSlider.value_(v/3.0) }.defer };
+		}, 1)
+	);
+
+	// Slider 3 — xfade (0.1–12s)
+	~r_midiResponders = ~r_midiResponders.add(
+		MIDIFunc.cc({ |val|
+			var v = (val / 127.0 * 12.0).max(0.1);
+			~r_xfadeTime = v;
+			if(~r_hudXfSlider.notNil) { { ~r_hudXfSlider.value_(v/12.0) }.defer };
+		}, 2)
+	);
+
+	// Slider 4 — gate thr (-80 to 0 dB)
+	~r_midiResponders = ~r_midiResponders.add(
+		MIDIFunc.cc({ |val|
+			var db = ((val / 127.0 * 80.0) - 80.0).round(1);
+			~r_gateThresh = db;
+			if(~r_gateSynth.notNil) { try { ~r_gateSynth.set(	hresh, db) } };
+			if(~r_hudThrSlider.notNil) { { ~r_hudThrSlider.value_((db+80)/80) }.defer };
+		}, 3)
+	);
+
+	// Slider 5 — gate rel (0–8s)
+	~r_midiResponders = ~r_midiResponders.add(
+		MIDIFunc.cc({ |val|
+			var rv = (val / 127.0 * 8.0).round(0.1);
+			~r_gateRelease = rv;
+			if(~r_gateSynth.notNil) { try { ~r_gateSynth.set(
+eleaseTime, rv) } };
+			if(~r_hudRelSlider.notNil) { { ~r_hudRelSlider.value_(rv/8.0) }.defer };
+		}, 4)
+	);
+
+	// S buttons CC 32–38 — categorie
+	cats.do { |cat, i|
+		~r_midiResponders = ~r_midiResponders.add(
+			MIDIFunc.cc({ |val|
+				if(val > 0) {
+					var t  = ~r_gestTension ? 0.3;
+					var az = ~r_currentAz  ? 180.0;
+					~r_gesture.(cat, t, az);
+					if(~r_hudCatBtns.notNil) {
+						{ ~r_hudCatBtns.do { |b, j| b.value_(if(j==i){1}{0}) } }.defer;
+					};
+				};
+			}, 32 + i)
+		);
+	};
+
+	// Transport ■ (CC 42) — PANIC
+	~r_midiResponders = ~r_midiResponders.add(
+		MIDIFunc.cc({ |val|
+			if(val > 0) {
+				if(~r_panic.notNil) { ~r_panic.() };
+				if(~r_hudCatBtns.notNil) { { ~r_hudCatBtns.do { |b| b.value_(0) } }.defer };
+			};
+		}, 42)
+	);
+
+	// Transport ● (CC 45) — REC toggle
+	~r_midiResponders = ~r_midiResponders.add(
+		MIDIFunc.cc({ |val|
+			if(val > 0) {
+				if(~r_hudRecBtn.notNil) {
+					{ ~r_hudRecBtn.value_(1 - ~r_hudRecBtn.value).doAction }.defer;
+				};
+			};
+		}, 45)
+	);
+
+	// Transport ► (CC 41) — headphone fold toggle
+	~r_midiResponders = ~r_midiResponders.add(
+		MIDIFunc.cc({ |val|
+			if(val > 0) {
+				if(~r_hudFoldBtn.notNil) {
+					{ ~r_hudFoldBtn.value_(1 - ~r_hudFoldBtn.value).doAction }.defer;
+				};
+			};
+		}, 41)
+	);
+
+	"NanoKONTROL2 MIDI responders active.".postln;
+	"  Sl1=tension  Sl2=vol  Sl3=xfade  Sl4=gate thr  Sl5=gate rel".postln;
+	"  S1-7=categories  ■=PANIC  ●=REC  ►=headphones".postln;
+};
+
+~r_midiStop = {
+	~r_midiResponders.do { |r| r.free };
+	~r_midiResponders = [];
+	"MIDI responders freed.".postln;
+};
+
+// Auto-start MIDI
+~r_midiSetup.();
+
 "HUD Block 1 OK — evaluate Block 2 to open window".postln;
 )
 
@@ -236,6 +388,7 @@ var volRow, volSlider, volVal;
 var panicBtn, hudRoutine, r, makeSlider;
 var catColors, cats, row1, row2;
 var recBtn, recLabel, foldBtn;
+var midiLabel;
 
 // ── Init variabili ────────────────────────────────────────────────────────────
 win       = Window("REMNANT", Rect(20, 20, 280, 650), resizable: false)
@@ -563,7 +716,22 @@ hudRoutine = Routine({
 	};
 }).play(AppClock);
 
-win.onClose = { hudRoutine.stop; if(~r_recSynth.notNil) { ~r_recStop.() }; if(~r_foldSynth.notNil) { ~r_foldStop.() } };
+win.onClose = {
+	hudRoutine.stop;
+	if(~r_recSynth.notNil)  { ~r_recStop.()  };
+	if(~r_foldSynth.notNil) { ~r_foldStop.() };
+	~r_midiStop.();
+};
+
+// ── Registra riferimenti globali per MIDI ─────────────────────────────────────
+~r_hudTensSlider = tensSlider;
+~r_hudVolSlider  = volSlider;
+~r_hudXfSlider   = xfSlider;
+~r_hudThrSlider  = thrSlider;
+~r_hudRelSlider  = relSlider;
+~r_hudCatBtns    = cats.collect { |cat| catBtns[cat] };
+~r_hudRecBtn     = recBtn;
+~r_hudFoldBtn    = foldBtn;
 win.front;
 "HUD aperto. Clicca una category per attivarla.".postln;
 )
