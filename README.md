@@ -86,7 +86,7 @@ python3 contimbre_explorer.py
 remnant_sc.scd      Block 1 (boot + buses + groups)
 remnant_conv.scd    Block 1, 2, 3
 remnant_flucos.scd
-remnant_hud.scd     Block 1, Block 2
+remnant_hud.scd     Block 1 (performance functions), Block 2 (HUD window)
 ```
 
 ---
@@ -102,21 +102,24 @@ remnant_hud.scd     Block 1, Block 2
 6. Click **Generate composition**
 7. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
 8. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
+9. Click **Export HTML score** — generates `~/Desktop/partitura_remnant.html` (navigable in browser, ← → or keys 1–9)
 
 ### Live performance (remnant_hud.scd)
 All fields play simultaneously as a single body. The HUD is the only live interface.
 
-- **START** — launches the automatic gesture timer; fields advance according to `brownian_score.json` durations
-- **STOP** — interrupts and resets to gesture 1
-- **tension** slider — overrides score tension in real time; alt+click returns to score value
+**Category buttons** — seven buttons (Klang, Farbklang, Geräusch, Kadenz, Textur, Stille, Neutro) trigger the convolution engine manually. The performer decides when to switch category based on what they hear from the orchestra.
+
+- **tension** slider — controls masking intensity in real time (0 = dry source, 1 = fully unrecognizable)
+- **FluCoMa t** — live bar showing real-time spectral tension from FluCoMa analysis (max contribution: 0.4)
+- **final t** — composite tension actually sent to the SynthDef (score tension + FluCoMa × 0.4)
 - **gate thr / gate rel** — input gate threshold and release
-- **xfade** — crossfade time between gestures
+- **xfade** — crossfade time between category changes
 - **master vol** — global output level
-- **PANIC** — stops timer and resets all synths
+- **◎ HEADPHONES** — toggle stereo fold-down for monitoring (8ch → stereo, weighted by azimuth)
+- **● REC / ■ STOP** — record output to `~/Desktop/remnant_YYYYMMDD_HHMMSS.aiff`
+- **PANIC** — stops all synths and resets state
 
-The HUD display shows: current gesture / total, Lachenmann category, progress bar, elapsed time / total duration.
-
-FluCoMa analysis runs continuously, adding automatic tension modulation (max contribution: 0.4).
+The active category label updates in real time on both the HUD and the CONV · LERDAHL panel.
 
 ---
 
@@ -128,22 +131,41 @@ Orchestra → BlackHole ch 1–4
     → SoundIn.ar([0,1,2,3])  per field
     → \r_input  (gain stage)
     → \r_gate   (amplitude gate, control bus)
-    → \r_conv   (Convolution2 — one processor per field, shared IR)
+    → \r_conv   (masking pipeline — per field)
+         ├─ PitchShift    (melodic/timbral scrambling)
+         ├─ Convolution2  (categorical IR coloring)
+         ├─ FreqShift     (spectral rotation)
+         └─ BPF           (alien spectral window)
     → 8-channel octophonic output
 ```
 
-### Convolution engine
+### Convolution engine (Lerdahl masking)
+The convolution engine implements progressive source masking following Lerdahl's timbral tension hierarchy. At tension 0.0 the source is fully recognizable; at tension 1.0 it is completely unrecognizable.
+
+The pipeline runs in series on each field:
+
+1. **PitchShift** — scrambles melodic/timbral identity; `pitchRatio`, `pitchDispersion` and `timeDispersion` scale with tension and vary by Lachenmann category
+2. **Convolution2** — applies a category-specific procedural IR to the already-scrambled signal
+3. **FreqShift** — rotates the spectrum by up to several hundred Hz, breaking residual harmonic relationships
+4. **BPF** — a moving spectral window that shifts toward inharmonic frequencies as tension rises
+
+The dry signal is multiplied by `(1 − tension)^1.5` — not mixed with the wet. At tension 1.0 the dry is zero.
+
 IRs are generated procedurally in SC, one per Lachenmann category:
 
-| Category  | IR character |
-|-----------|-------------|
-| Farbklang | FM, 3 inharmonic operators (ratios 1.41, 2.73, 0.618), decreasing index |
-| Geräusch  | White noise |
-| Klang     | 6 harmonic partials, long decay |
-| Kadenz    | Sinusoidal impulse train |
-| Textur    | Noise with slow attack |
+| Category  | IR character | Max freq shift | BPF Q |
+|-----------|-------------|---------------|-------|
+| Klang     | Pure harmonic partials, long decay | 15 Hz | 0.3 |
+| Farbklang | Inharmonic ratios (φ, √2, √3…) | 60 Hz | 0.5 |
+| Geräusch  | Broadband noise + band-filtered noise | 180 Hz | 1.2 |
+| Kadenz    | Periodic impulse train | 8 Hz | 2.0 |
+| Textur    | Slow FM modulation | 25 Hz | 0.2 |
+| Stille    | Near-impulse, maximum transparency | 0 Hz | 0.1 |
+| Neutro    | Neutral resonance + slight noise | 5 Hz | 0.3 |
 
 All fields share the same IR and tension value (orchestra as a single body). Azimuth is per-field from the score.
+
+IR parameters are adjustable live from the **CONV · LERDAHL** panel: IR length, pitch max, pitch dispersion, time dispersion, freq shift, BPF Q, pre-delay.
 
 ### Sound diversity
 Two mechanisms prevent timbral homogeneity across the composition:
@@ -169,7 +191,7 @@ The pulse grid encodes the Brownian inter-step distances as binary rational frac
 
 | Parameter | Range | Description |
 |-----------|-------|-------------|
-| Duration | 4–30 s | Total composition duration |
+| Duration | 30–180 s | Total duration per gesture (default: 60 s) |
 | Number of fields | 1–15 | Simultaneous Brownian streams |
 | Brownian steps | 4–32 | Path length per field |
 | Initial volatility | 0.5–10.0 | Brownian step size |
@@ -215,6 +237,7 @@ remnant/
 ├── generate_reaper.py         # Reaper project generator
 ├── generate_midi.py           # MIDI file generator
 ├── plot_brownian.py           # Matplotlib Brownian path plot
+├── partitura_html.py          # HTML score generator (navigable, one gesture per page)
 ├── export_tsv.lisp            # ConTimbre corpus extraction via SBCL
 ├── remnant_sc.scd             # SC — boot, buses, groups, SynthDefs
 ├── remnant_conv.scd           # SC — convolution engine, IR generation

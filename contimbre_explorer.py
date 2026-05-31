@@ -392,7 +392,7 @@ def home_layout():
 
             # Parametri compositivi
             _label("Compositional form"),
-            _slider_block("Duration (sec)", "duration-slider", 4, 30, 1, 10),
+            _slider_block("Duration (sec)", "duration-slider", 30, 180, 5, 60),
             _slider_block("Number of fields", "gestures-slider", 1, 15, 1, 4),
 
             _hr(),
