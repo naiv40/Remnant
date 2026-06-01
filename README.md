@@ -12,7 +12,7 @@ The project emerges from a biocentric perspective on the Anthropocene: instrumen
 
 ## Presentation video
 
-[![Remnant — Sound Traces from a Non-Human World](https://img.youtube.com/vi/3dbyVULZbTE/maxresdefault.jpg)](https://www.youtube.com/watch?v=3dbyVULZbTE)
+[![Remnant — Sound Traces from a Non-Human World](https://img.youtube.com/vi/VLJJNfbaflw/maxresdefault.jpg)](https://youtu.be/VLJJNfbaflw)
 
 ---
 
@@ -203,14 +203,6 @@ The pulse grid encodes the Brownian inter-step distances as binary rational frac
 ---
 
 ## Theoretical framework
-
-The system is grounded in two complementary theoretical models that operate at different temporal scales.
-
-**McAdams' timbral prolongational hierarchy** treats timbre as a structural force analogous to harmony in tonal music. Sounds are positioned in a perceptual space defined by spectral and temporal descriptors — brightness, roughness, attack time, spectral flux — weighted according to their perceptual salience. Proximity within this space creates timbral coherence; distance generates tension. The hierarchy describes how timbral events prolong, destabilise and resolve, providing a structural grammar for spectrally-defined, non-pitched music.
-
-**Lerdahl's timbral tension model** extends this framework into a quantitative metric: tension is a function of distance within the timbral space, modulated by the hierarchical position of each event within the prolongational structure. In Remnant, this value governs the real-time processing layer directly — at low tension the orchestral source remains recognisable; as tension increases, it is progressively masked, displaced and rendered unrecognisable within an artificial acoustic environment.
-
-The two models articulate different aspects of temporal organisation: McAdams structures the compositional trajectory at the macro level (selection, ordering and density of timbral events across the full duration); Lerdahl governs the micro level (the degree of transformation applied to each event in real time).
 
 | Layer | Reference | Implementation |
 |-------|-----------|----------------|
