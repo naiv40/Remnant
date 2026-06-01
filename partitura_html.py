@@ -227,6 +227,69 @@ def build_figure(g):
     # Suoni
     dur_min,dur_max_v = 0.4,7.0
     ev_tensions = [ev.get("tension",0.5) for ev in events]
+
+    # ── Legature tra eventi consecutivi dello stesso strumento ────────────────
+    # Raggruppa eventi per strumento, ordinati per t
+    by_instr = {}
+    for ei, ev in enumerate(events):
+        by_instr.setdefault(ev["instrument"], []).append((ei, ev))
+
+    for instr, ev_list in by_instr.items():
+        if len(ev_list) < 2:
+            continue
+        for k in range(len(ev_list) - 1):
+            ei0, ev0 = ev_list[k]
+            ei1, ev1 = ev_list[k+1]
+            t0   = ev0["t"] - t_start
+            t1   = ev1["t"] - t_start
+            az0  = ev0["azimuth"]
+            az1  = ev1["azimuth"]
+            ten0 = ev0.get("tension", 0.5)
+            ten1 = ev1.get("tension", 0.5)
+            dt   = abs(ten1 - ten0)
+
+            # Colore legatura = Dynamic Form del gesto
+            dir_color = DYNAMIC_FORM_COLORS.get(direction, "#888888")
+
+            # Spessore in base alla distanza timbrale
+            if dt < 0.15:
+                width  = 0.8    # passaggio graduale
+                opacity = 0.45
+                symbol = ""
+            elif dt < 0.4:
+                width  = 1.5    # contrasto morbido
+                opacity = 0.6
+                symbol = ""
+            else:
+                width  = 2.2    # contrasto netto
+                opacity = 0.8
+                symbol = "◇"
+
+            # Arco SEMPRE sopra: proporzionale alla distanza temporale
+            # min +15, max +28 — evita archi enormi per eventi lontani
+            t_span = t1 - t0
+            arc_h  = min(28, max(15, t_span * 0.8))
+            mid_t  = (t0 + t1) / 2
+            mid_az = max(az0, az1) + arc_h
+
+            lx = [t0, mid_t, t1]
+            ly = [az0, mid_az, az1]
+
+            fig.add_trace(go.Scatter(
+                x=lx, y=ly, mode="lines",
+                line=dict(color=dir_color, width=width,
+                          shape="spline", smoothing=1.3),
+                opacity=opacity, showlegend=False, hoverinfo="skip",
+                legendgroup="slur"))
+
+            # Simbolo ◇ al centro per contrasto netto
+            if symbol:
+                fig.add_annotation(
+                    x=mid_t, y=mid_az + 4,
+                    text=symbol,
+                    font=dict(size=10, color=dir_color, family="Georgia, serif"),
+                    showarrow=False, xanchor="center", yanchor="bottom",
+                    opacity=0.8)
     default_sym = DIR_DEFAULT_SYM.get(direction,"circle-open")
     default_pts = {"x":[],"y":[],"sz":[],"tip":[],"op":[]}
     by_accent   = {}

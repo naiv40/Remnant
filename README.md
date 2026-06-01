@@ -225,6 +225,7 @@ Each field is visualised on an azimuthal axis (0–360°, mapped to 8-channel oc
 - **Pulse grid** — Brownian inter-step distances as binary rational fractions, single BPM per gesture; sum of fractions = gesture duration
 - **Red vertical lines** — pulse grid divisions crossing the full azimuthal range
 - **Two tension curves** — compositional profile (from Dynamic Form) and Brownian envelope (inverse of step duration)
+- **Articulation slurs** — curved lines connecting consecutive events of the same instrument within a gesture. Each succession of timbres forms a phrase that the performer reads as a single gestural arc. Line weight indicates the degree of timbral contrast between events: thin (gradual transition), medium (soft contrast), thick with ◇ (sharp contrast). Slur colour matches the Dynamic Form of the gesture (Forward → blue, Backward → red, Presence → green, Neutral → grey).
 
 ---
 
