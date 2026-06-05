@@ -94,9 +94,9 @@ remnant_hud.scd     Block 1 (performance functions), Block 2 (HUD window)
 ## Workflow
 
 ### Composition (contimbre_explorer.py)
-1. Select instrument families in the left panel
-2. Click **Apply filter** — recomputes UMAP on the subset with McAdams perceptual weights
-3. Set compositional parameters (duration per field, number of fields, Brownian steps)
+1. Describe the **sound image** using four perceptual sliders (centroid, texture, pitch, dynamics) and set the **Breadth** to control how much of the corpus is selected. Click **Select from sound image** — the system selects the closest sounds using a McAdams-weighted distance and updates the timbral map.  
+   Alternatively, select instrument families manually and click **Apply filter** — recomputes UMAP on the subset with McAdams perceptual weights.
+2. Set compositional parameters (duration per field, number of fields, Brownian steps)
 4. Set **Spectral diversity** — minimum spectral centroid difference between consecutive events
 5. Assign a **Temporal direction** to each field (Forward / Backward / Presence / Neutral)
 6. Click **Generate composition**
@@ -174,7 +174,7 @@ Two mechanisms prevent timbral homogeneity across the composition:
 - **Inter-field exclusion** — each sound can only appear in one field. A shared `global_seen` set across all fields guarantees no repetitions.
 
 ### Pulse grid
-The pulse grid encodes the Brownian inter-step distances as binary rational fractions. All fractions within a gesture share a single BPM — chosen as the canonical metronome value for which `gesture_duration × BPM / 60` is closest to an integer, so that the sum of all fractions corresponds exactly to the gesture duration.
+The pulse grid encodes the Brownian inter-step distances as binary rational fractions. Each cell carries its own local BPM, derived from the per-step tension value: `BPM = 40 + tension × 80`, snapped to a set of practically readable values `[40, 48, 60, 72, 80, 96, 120]`. High tension produces a faster local pulse; low tension a slower one. The absolute durations in seconds remain invariant — the BPM is a gestural and interpretive indication, not a temporal constraint.
 
 ### Dynamic Form → Lachenmann mapping
 
@@ -191,6 +191,11 @@ The pulse grid encodes the Brownian inter-step distances as binary rational frac
 
 | Parameter | Range | Description |
 |-----------|-------|-------------|
+| Centroid | 0.0–1.0 | Dark ↔ Bright — target spectral centroid for sound image selection |
+| Texture | 0.0–1.0 | Smooth ↔ Rough — target spectral complexity |
+| Pitch | 0.0–1.0 | Low ↔ High — target pitch register |
+| Dynamics | 0.0–1.0 | Soft ↔ Loud — target dynamic level |
+| Breadth | 0.05–0.50 | Percentage of corpus selected (top-N closest sounds by weighted distance) |
 | Duration | 30–180 s | Total duration per gesture (default: 60 s) |
 | Number of fields | 1–15 | Simultaneous Brownian streams |
 | Brownian steps | 4–32 | Path length per field |
@@ -210,7 +215,7 @@ The pulse grid encodes the Brownian inter-step distances as binary rational frac
 | Temporal directions | Thoresen Dynamic Forms (Aural Sonology ch. 8) | Brownian attractor per direction |
 | Timbral tension | Lerdahl timbral hierarchy | Tension profile + distance threshold |
 | Timbral prolongation | McAdams prolongational hierarchy | IR categories + gesture sequencing |
-| Pulse grid | Proportional notation | Brownian inter-step distances → binary rational fractions, single canonical BPM per gesture |
+| Pulse grid | Proportional notation | Brownian inter-step distances → binary rational fractions, local BPM per cell from per-step tension |
 
 Full theoretical notes: `remnant_note_teoriche.docx`
 
@@ -222,7 +227,7 @@ Each field is visualised on an azimuthal axis (0–360°, mapped to 8-channel oc
 
 - **Sound bars** — duration and onset of each event, clipped to field boundaries
 - **Accent symbols** — release point ▲, goal point ●, termination ▼, warning point ◇ (Aural Sonology notation)
-- **Pulse grid** — Brownian inter-step distances as binary rational fractions, single BPM per gesture; sum of fractions = gesture duration
+- **Pulse grid** — Brownian inter-step distances as binary rational fractions; each cell carries a local BPM derived from per-step tension (40–120 bpm, snapped to readable values)
 - **Red vertical lines** — pulse grid divisions crossing the full azimuthal range
 - **Two tension curves** — compositional profile (from Dynamic Form) and Brownian envelope (inverse of step duration)
 - **Articulation slurs** — curved lines connecting consecutive events of the same instrument within a gesture. Each succession of timbres forms a phrase that the performer reads as a single gestural arc. Line weight indicates the degree of timbral contrast between events: thin (gradual transition), medium (soft contrast), thick with ◇ (sharp contrast). Slur colour matches the Dynamic Form of the gesture (Forward → blue, Backward → red, Presence → green, Neutral → grey).

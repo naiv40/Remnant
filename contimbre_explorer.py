@@ -49,6 +49,18 @@ ALL_INSTRUMENTS = sorted(df_full["instrument"].unique())
 
 DYNAMIC_FORM_CATEGORIES = ["Neutral", "Forward", "Backward", "Presence"]
 
+# ─── BPM locale da tensione ──────────────────────────────────────────────────
+BPM_CLEAN = [40, 48, 60, 72, 80, 96, 120]
+
+def tension_to_bpm(tension):
+    """Mappa tensione 0→1 su BPM praticabile snappato a valori puliti.
+    tensione 0.0 → ♩=40, tensione 1.0 → ♩=120.
+    Le durate assolute in secondi restano invariate — il BPM è indicazione
+    gestuale/interpretativa (Ferneyhough).
+    """
+    bpm_raw = 40 + float(tension) * 80
+    return min(BPM_CLEAN, key=lambda b: abs(b - bpm_raw))
+
 DYNAMIC_FORM_COLORS = {
     "Forward":  "#378ADD",   # blue — rising tension, arrow →
     "Backward": "#E05C5C",   # red — release, arrow ←
@@ -377,6 +389,21 @@ def home_layout():
 
         # ── Left panel ──
         html.Div([
+
+            # ── Immagine sonora ──────────────────────────────────────────
+            _label("Sound image"),
+            _slider_block("Dark \u2190 centroid \u2192 Bright",   "img-center-slider",  0.0, 1.0, 0.05, 0.5),
+            _slider_block("Smooth \u2190 texture \u2192 Rough",   "img-complex-slider", 0.0, 1.0, 0.05, 0.5),
+            _slider_block("Low \u2190 pitch \u2192 High",         "img-pitch-slider",   0.0, 1.0, 0.05, 0.5),
+            _slider_block("Soft \u2190 dynamics \u2192 Loud",     "img-dyn-slider",     0.0, 1.0, 0.05, 0.5),
+            _slider_block("Breadth (% corpus)",                  "img-radius-slider",  0.05, 0.5, 0.05, 0.2),
+            _btn("Select from sound image", "img-filter-btn", color="#9B59B6"),
+            html.Div(id="img-filter-status", style={
+                "fontFamily": "monospace", "fontSize": "10px",
+                "color": "#9B59B6", "minHeight": "14px", "marginBottom": "8px",
+            }),
+
+            _hr(),
 
             # Filtri strumenti
             _label("Instruments"),
@@ -824,6 +851,7 @@ def generate_composition(n_gestures, steps, init_vol, drift_noise, duration_sec,
             "dx":             round(dx, 2),
             "dy":             round(dy, 2),
             "tension":        tension,
+            "bpm_local":      tension_to_bpm(tension),
             "tension_profile": tension_profile,
             "t_start":        t_start,
             "t_end":          t_end,
@@ -1119,9 +1147,12 @@ def build_score_json(gestures, duration, df_active, bpm=60, dur_scale=1.0):
             "t_start":      g["t_start"],
             "t_end":        g["t_end"],
             "tension":      g.get("tension", 0.5),
+            "bpm_local":    g.get("bpm_local", 60),
             "dynamic_form": g.get("dynamic_form", "Neutral"),
             "lachenmann":   g.get("lachenmann", "Neutro"),
+            "bpm_local":    g.get("bpm_local", 60),
             "step_dists":   g.get("step_dists", []),
+            "tension_profile": [round(float(t),3) for t in g.get("tension_profile", [])],
             "events":       events,
         })
     return {"duration": duration, "bpm": bpm, "dur_scale": dur_scale, "gestures": score_gestures}
@@ -1170,6 +1201,122 @@ def _upd_spectral_div(val): return str(val)
 @app.callback(Output("attraction-slider-display", "children"), Input("attraction-slider", "value"))
 def _upd_attraction(val): return str(val)
 
+@app.callback(Output("img-center-slider-display",  "children"), Input("img-center-slider",  "value"))
+def _upd_img_center(val):  return str(val)
+@app.callback(Output("img-complex-slider-display", "children"), Input("img-complex-slider", "value"))
+def _upd_img_complex(val): return str(val)
+@app.callback(Output("img-pitch-slider-display",   "children"), Input("img-pitch-slider",   "value"))
+def _upd_img_pitch(val):   return str(val)
+@app.callback(Output("img-dyn-slider-display",     "children"), Input("img-dyn-slider",     "value"))
+def _upd_img_dyn(val):     return str(val)
+@app.callback(Output("img-radius-slider-display",  "children"), Input("img-radius-slider",  "value"))
+def _upd_img_radius(val):  return str(val)
+
+
+# Sound image -> seleziona strumenti nel UMAP e aggiorna df-store
+@app.callback(
+    Output("df-store",         "data",     allow_duplicate=True),
+    Output("img-filter-status","children"),
+    Output("umap-graph",       "figure",   allow_duplicate=True),
+    Input("img-filter-btn",    "n_clicks"),
+    State("img-center-slider",  "value"),
+    State("img-complex-slider", "value"),
+    State("img-pitch-slider",   "value"),
+    State("img-dyn-slider",     "value"),
+    State("img-radius-slider",  "value"),
+    prevent_initial_call=True,
+)
+def apply_sound_image(n_clicks, center_v, complex_v, pitch_v, dyn_v, radius):
+    """Seleziona suoni per immagine sonora usando distanza pesata (McAdams).
+    Invece di un AND rigido per dimensione, calcola la distanza euclidea
+    normalizzata di ogni suono dal target nei 4 parametri percettivi.
+    Il radius controlla quanta percentuale del corpus viene selezionata
+    (radius=0.2 → top 20% dei suoni piu vicini al target).
+    Trova sempre qualcosa indipendentemente dalla posizione degli slider.
+    """
+    df = df_full.copy()
+
+    # Prepara colonne numeriche normalizzate 0-1
+    scores = pd.DataFrame(index=df.index)
+
+    if "spectral_center" in df.columns:
+        lo, hi = df["spectral_center"].min(), df["spectral_center"].max()
+        span = hi - lo if hi > lo else 1.0
+        scores["center"] = (df["spectral_center"] - lo) / span
+    else:
+        scores["center"] = 0.5
+
+    if "spectral_complexity" in df.columns:
+        lo, hi = df["spectral_complexity"].min(), df["spectral_complexity"].max()
+        span = hi - lo if hi > lo else 1.0
+        scores["complex"] = (df["spectral_complexity"] - lo) / span
+    else:
+        scores["complex"] = 0.5
+
+    if "pitch" in df.columns:
+        p = pd.to_numeric(df["pitch"], errors="coerce")
+        p = p.replace(-1000.0, float("nan")).fillna(p.median())
+        lo, hi = p.min(), p.max()
+        span = hi - lo if hi > lo else 1.0
+        scores["pitch"] = (p - lo) / span
+    else:
+        scores["pitch"] = 0.5
+
+    if "dynamic" in df.columns:
+        dyn_map = {"ppp":0,"pp":1,"p":2,"mp":3,"mf":4,"f":5,"ff":6,"fff":7}
+        d = df["dynamic"].map(dyn_map).fillna(3.5)
+        scores["dyn"] = d / 7.0
+    else:
+        scores["dyn"] = 0.5
+
+    # Pesi percettivi McAdams: centroid e complexity piu salienti
+    W = {"center": 3.0, "complex": 2.0, "pitch": 1.5, "dyn": 1.0}
+    target = {"center": center_v, "complex": complex_v, "pitch": pitch_v, "dyn": dyn_v}
+
+    dist = sum(W[k] * (scores[k] - target[k])**2 for k in W)
+    dist = dist / sum(W.values())   # normalizza su 0-1
+
+    df["_dist"] = dist.values
+
+    # Seleziona il top (radius)% dei suoni piu vicini al target
+    n_select = max(10, int(len(df) * radius))
+    df_sub = df.nsmallest(n_select, "_dist").copy()
+
+    n_instr = df_sub["instrument"].nunique()
+    n_fam   = df_sub["family"].nunique()
+    d_mean  = float(df_sub["_dist"].mean())
+    status  = f"\u2713 {n_select} sounds \u00b7 {n_instr} instruments \u00b7 {n_fam} families  (dist={d_mean:.3f})"
+
+    df_out = df_sub[["id", "instrument", "family", "x", "y"]].copy()
+
+    fig = go.Figure()
+    for fam, grp in df_full.groupby("family"):
+        col = FAMILY_COLORS.get(fam, "#ccc")
+        fig.add_trace(go.Scattergl(
+            x=grp["x"], y=grp["y"], mode="markers",
+            marker=dict(size=4, color=col, opacity=0.12),
+            name=fam, showlegend=False, hoverinfo="skip",
+        ))
+    for fam, grp in df_out.groupby("family"):
+        col = FAMILY_COLORS.get(fam, "#ccc")
+        fig.add_trace(go.Scattergl(
+            x=grp["x"], y=grp["y"], mode="markers",
+            marker=dict(size=7, color=col, opacity=0.85,
+                        line=dict(color="white", width=0.8)),
+            name=fam, text=grp["instrument"],
+            hovertemplate="<b>%{text}</b><extra></extra>",
+            legendgroup=fam,
+        ))
+    fig.update_layout(
+        paper_bgcolor="#fafafa", plot_bgcolor="#fafafa",
+        font=dict(family="Courier New", size=10, color="#555"),
+        margin=dict(l=20, r=20, t=20, b=20),
+        legend=dict(orientation="v", x=1.01, y=1, font=dict(size=9), itemsizing="constant"),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        hovermode="closest",
+    )
+    return df_out.to_dict("records"), status, fig
 
 
 # Apply filter → recompute UMAP → update df-store
@@ -1389,6 +1536,7 @@ def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_no
         attraction=attraction or 0.35,
         spectral_diversity=spectral_div if spectral_div is not None else 0.15,
     )
+    print("DEBUG tensions:", [(g["index"], g.get("tension"), g.get("bpm_local")) for g in gestures])
 
     fig = go.Figure()
 
@@ -1537,7 +1685,9 @@ def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_no
             "t_end":        g["t_end"],
             "dynamic_form": g.get("dynamic_form", "Neutral"),
             "lachenmann":   g.get("lachenmann", "Neutro"),
+            "bpm_local":    g.get("bpm_local", 60),
             "step_dists":   g.get("step_dists", []),
+            "tension_profile": [round(float(t),3) for t in g.get("tension_profile", [])],
             "events_timed": evs,
         })
     return fig, seq_items, gesture_items, timeline, all_ids, gestures_serial
@@ -1791,8 +1941,8 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
             92,96,100,104,108,112,116,120,126,132,138,144,152,160,168,
             176,184,200,208
         ]
-        bpm_score = min(CANONICAL_BPM,
-                        key=lambda b: abs(g_dur * b / 60.0 - round(g_dur * b / 60.0)))
+        bpm_score = g.get("bpm_local", min(CANONICAL_BPM,
+                        key=lambda b: abs(g_dur * b / 60.0 - round(g_dur * b / 60.0))))
         beat_sec  = 60.0 / bpm_score
         NOTE_UNITS = [
             ("\u266a",  0.5),    # ♪ croma
@@ -1815,13 +1965,23 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
                 best_dist_u     = dist_u
                 best_unit_label = unit_label
 
-        # Per ogni cella trova num/den ottimale con denominatore binario.
-        # Tutte le frazioni riferite allo stesso BPM globale del gesto.
+        # Per ogni cella: BPM locale dalla tensione del passo corrispondente.
+        # Le frazioni sono relative al BPM locale della cella — cambiano da cella
+        # a cella anche se le durate assolute restano invariate (Ferneyhough).
+        tension_profile = g.get("tension_profile", [])
         frac_labels   = []
+        bpm_per_cell  = []
         tick_times    = [0.0]
         BINARY_DENOMS = [1, 2, 4, 8, 16, 32]
-        for dur_sec in cell_secs:
-            dur_beats = dur_sec / beat_sec
+        BPM_CLEAN_LOCAL = [40, 48, 60, 72, 80, 96, 120]
+        for ci, dur_sec in enumerate(cell_secs):
+            # Tensione locale della cella (passo ci+1, perché dists[0]=0)
+            t_loc = tension_profile[ci + 1] if ci + 1 < len(tension_profile) else g.get("tension", 0.5)
+            bpm_raw = 40 + float(t_loc) * 80
+            bpm_cell = min(BPM_CLEAN_LOCAL, key=lambda b: abs(b - bpm_raw))
+            bpm_per_cell.append(bpm_cell)
+            beat_sec_cell = 60.0 / bpm_cell
+            dur_beats = dur_sec / beat_sec_cell
             best_num, best_den, best_err = max(1, round(dur_beats)), 1, float("inf")
             for den in BINARY_DENOMS:
                 num = max(1, round(dur_beats * den))
@@ -1865,8 +2025,9 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
             offset = 8 if i == 0 else 5
             y_text = RH_Y + offset if above else RH_Y - offset
             anchor = "bottom" if above else "top"
+            bpm_c = bpm_per_cell[i] if i < len(bpm_per_cell) else bpm_score
             fig.add_annotation(x=t_tick, y=y_text,
-                text=f"<b>{label}</b><br><span style='font-size:9px;color:#555'>{best_unit_label}={bpm_score}</span>",
+                text=f"<b>{label}</b><br><span style='font-size:9px;color:#555'>♩={bpm_c}</span>",
                 font=dict(size=11, color=INK, family="Georgia, serif"),
                 showarrow=False, xanchor="center", yanchor=anchor)
 
@@ -2064,6 +2225,7 @@ def generate_score(n_clicks, gestures_data, df_store, duration, dynform_store):
         idx = g.get("index", 0)
         g["dynamic_form"] = dynform_store.get(str(idx), "Neutral")
         g["lachenmann"]   = "Neutro"  # compatibilita SC
+    print("DEBUG score input:", [(g["index"], g.get("tension"), g.get("bpm_local")) for g in gestures_data])
     if df_store:
         df_active = pd.DataFrame(df_store)
     else:

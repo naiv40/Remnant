@@ -182,13 +182,18 @@ def build_figure(g):
             40,42,44,46,48,50,52,54,56,58,60,63,66,69,72,76,80,84,88,
             92,96,100,104,108,112,116,120,126,132,138,144,152,160,168,176,184,200
         ]
-        bpm_s = min(CANONICAL_BPM,
-                    key=lambda b: abs(g_dur*b/60.0 - round(g_dur*b/60.0)))
-        beat_s = 60.0/bpm_s
+        BPM_CLEAN_LOCAL = [40, 48, 60, 72, 80, 96, 120]
+        tension_profile = g.get("tension_profile", [])
         BINARY_D = [1,2,4,8,16,32]
-        frac_labels = []
-        tick_times  = [0.0]
-        for dur_s in cell_s:
+        frac_labels  = []
+        bpm_per_cell = []
+        tick_times   = [0.0]
+        for ci, dur_s in enumerate(cell_s):
+            t_loc = tension_profile[ci+1] if ci+1 < len(tension_profile) else g.get("tension", 0.5)
+            bpm_raw = 40 + float(t_loc) * 80
+            bpm_cell = min(BPM_CLEAN_LOCAL, key=lambda b: abs(b - bpm_raw))
+            bpm_per_cell.append(bpm_cell)
+            beat_s = 60.0 / bpm_cell
             db = dur_s/beat_s
             best_num,best_den,best_err = max(1,round(db)),1,float("inf")
             for den in BINARY_D:
@@ -214,7 +219,7 @@ def build_figure(g):
             y_t   = RH_Y+(8 if above else -5)
             anc   = "bottom" if above else "top"
             fig.add_annotation(x=tt,y=y_t,
-                text=f"<b>{lbl}</b><br><span style='font-size:9px;color:#555'>♩={bpm_s}</span>",
+                text=f"<b>{lbl}</b><br><span style='font-size:9px;color:#555'>♩={bpm_per_cell[i] if i < len(bpm_per_cell) else '—'}</span>",
                 font=dict(size=11,color=INK,family="Georgia, serif"),
                 showarrow=False,xanchor="center",yanchor=anc)
         fig.add_annotation(x=g_dur*1.01,y=RH_Y,text="pulse grid",
