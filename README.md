@@ -19,22 +19,30 @@ The project emerges from a biocentric perspective on the Anthropocene: instrumen
 ## System overview
 
 ```
-ConTimbre TSV corpus
-    ↓  export_tsv.lisp  (SBCL)
-contimbre_full.tsv
+ConTimbre TSV corpus  /  SOL HQ corpus
+    ↓  export_tsv.lisp  (SBCL)  /  sol_to_tsv_2.py
+contimbre_full.tsv  /  sol_coords_input.tsv
     ↓  umap_full.py  (McAdams perceptual weights)
-umap_full_coords.csv
+umap_contimbre_coords.csv  /  umap_sol_coords.csv
     ↓  contimbre_explorer.py  (Dash)
+        ├─ Corpus selector (ConTimbre / SOL HQ)
+        ├─ Sound image selector (centroid, texture, pitch, dynamics + Breadth)
         ├─ Instrument family filter + local UMAP recomputation
         ├─ Multi-field Brownian motion with spectral diversity constraint
         ├─ Inter-field sound exclusion (no repeated sounds across fields)
         ├─ Interactive graphic score with proportional pulse grid
         ├─ Export .cOrc / .cePlayerOrc  (SBCL)
+        ├─ Export HTML score  (navigable, one gesture per page)
+        ├─ Export PS notation  (ConTimbre graphic notation via SBCL)
         └─ brownian_score.json  →  SuperCollider
                 ├─ remnant_sc.scd      (boot, buses, groups, synths)
                 ├─ remnant_conv.scd    (convolution engine, IR generation)
                 ├─ remnant_flucos.scd  (FluCoMa real-time analysis)
                 └─ remnant_hud.scd     (performance HUD)
+
+Demo / development playback (no orchestra):
+        contimbre_test.scd     (FOA playback from score, with recording)
+        contimbre_resolve_paths.lisp  (ConTimbre id → MP3 path resolver)
 ```
 
 ---
@@ -47,9 +55,10 @@ pip install -r requirements.txt
 ```
 
 ### SuperCollider
-Requires SuperCollider ≥ 3.12 with FluCoMa Quark:
+Requires SuperCollider ≥ 3.12 with FluCoMa and ATK quarks:
 ```supercollider
 Quarks.install("FluCoMa");
+Quarks.install("atk-sc3");
 // Restart SC after installation
 ```
 
@@ -59,21 +68,32 @@ Requires [BlackHole](https://existential.audio/blackhole/) (16ch) configured as 
 ### ConTimbre + SBCL
 [ConTimbre Standard V2](https://www.contimbre.com) and [SBCL](http://www.sbcl.org) with Quicklisp must be installed and available in PATH.
 
+### SOL HQ (optional)
+[Studio On Line HQ](https://forum.ircam.fr/projects/detail/sol/) from IRCAM. Required only when using the SOL corpus. The `sol_to_tsv_2.py` script reads `SOL_0.9_HQ_2.spectrum.db` and exports the TSV.
+
 ---
 
 ## Setup
 
 ### 1. Extract the corpus
+
+**ConTimbre:**
 ```bash
 sbcl --load export_tsv.lisp
 ```
 Writes `/tmp/contimbre_full.tsv`.
 
+**SOL HQ:**
+```bash
+python3 sol_to_tsv_2.py
+```
+Writes `sol_coords_input.tsv` in the project folder.
+
 ### 2. Compute UMAP coordinates
 ```bash
 python3 umap_full.py
 ```
-Generates `umap_full_coords.csv` in the project folder.
+Generates `umap_contimbre_coords.csv` and/or `umap_sol_coords.csv`.
 
 ### 3. Launch Remnant Explorer
 ```bash
@@ -89,20 +109,33 @@ remnant_flucos.scd
 remnant_hud.scd     Block 1 (performance functions), Block 2 (HUD window)
 ```
 
+### 5. Demo playback (no orchestra)
+```
+1. sbcl --load contimbre_resolve_paths.lisp   # resolves score IDs → MP3 paths
+2. contimbre_test.scd  Block 0, 1, 2, 3, 4
+3. ~playScore.()   # plays entire score with automatic recording
+```
+
 ---
 
 ## Workflow
 
 ### Composition (contimbre_explorer.py)
-1. Describe the **sound image** using four perceptual sliders (centroid, texture, pitch, dynamics) and set the **Breadth** to control how much of the corpus is selected. Click **Select from sound image** — the system selects the closest sounds using a McAdams-weighted distance and updates the timbral map.  
-   Alternatively, select instrument families manually and click **Apply filter** — recomputes UMAP on the subset with McAdams perceptual weights.
-2. Set compositional parameters (duration per field, number of fields, Brownian steps)
-4. Set **Spectral diversity** — minimum spectral centroid difference between consecutive events
-5. Assign a **Temporal direction** to each field (Forward / Backward / Presence / Neutral)
-6. Click **Generate composition**
-7. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
-8. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
-9. Click **Export HTML score** — generates `~/Desktop/partitura_remnant.html` (navigable in browser, ← → or keys 1–9)
+
+**Corpus selection** — switch between ConTimbre and SOL HQ from the sidebar. Each corpus has its own pre-computed UMAP space.
+
+**Sound image** — describe the target timbre using four perceptual sliders (centroid, texture, pitch, dynamics) and set **Breadth** to control how much of the corpus is selected. Click **Select from sound image** — the system selects the closest sounds using a McAdams-weighted Euclidean distance and updates the timbral map.
+
+Alternatively, select instrument families manually and click **Apply filter** — recomputes UMAP on the subset.
+
+1. Set compositional parameters (duration, number of fields, Brownian steps)
+2. Set **Spectral diversity** — minimum spectral centroid difference between consecutive events
+3. Assign a **Temporal direction** to each field (Forward / Backward / Presence / Neutral)
+4. Click **Generate composition**
+5. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
+6. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
+7. Click **Export HTML score** — generates `~/Desktop/partitura_remnant.html`
+8. Click **Export PS notation** — generates `brownian_notation.ps` with ConTimbre graphic notation via SBCL
 
 ### Live performance (remnant_hud.scd)
 All fields play simultaneously as a single body. The HUD is the only live interface.
@@ -119,13 +152,26 @@ All fields play simultaneously as a single body. The HUD is the only live interf
 - **● REC / ■ STOP** — record output to `~/Desktop/remnant_YYYYMMDD_HHMMSS.aiff`
 - **PANIC** — stops all synths and resets state
 
-The active category label updates in real time on both the HUD and the CONV · LERDAHL panel.
+The active category label updates in real time on both the HUD and the CONV · LERDAHL panel. The timer advances through the score gestures automatically; category and tension are read from the score but can be overridden manually at any time.
+
+### Demo playback (contimbre_test.scd)
+Standalone playback of the brownian score using ConTimbre MP3 samples, without a live orchestra. Uses ATK FOA for 8-channel diffusion.
+
+```supercollider
+~playScore.()      // plays entire score in sequence, records automatically
+~stopScore.()      // stop
+~playGesture.(0)   // play single gesture (0-indexed)
+~recStart.()       // manual record start
+~recStop.()        // manual record stop
+```
+
+Recording closes automatically after all reverb tails have decayed (monitored via `s.numSynths`). Output: `~/Desktop/remnant_YYYYMMDD_HHMMSS.aiff`, 8 channels.
 
 ---
 
 ## Architecture
 
-### Signal chain
+### Signal chain (live)
 ```
 Orchestra → BlackHole ch 1–4
     → SoundIn.ar([0,1,2,3])  per field
@@ -136,6 +182,15 @@ Orchestra → BlackHole ch 1–4
          ├─ Convolution2  (categorical IR coloring)
          ├─ FreqShift     (spectral rotation)
          └─ BPF           (alien spectral window)
+    → 8-channel octophonic output (VBAP)
+```
+
+### Signal chain (demo — contimbre_test.scd)
+```
+brownian_score.json
+    → contimbre_resolve_paths.lisp  (id → MP3 path)
+    → Buffer.read  (per event, cached)
+    → PlayBuf  →  FreeVerb  →  FOA encode  →  FoaDecode (panto 8)
     → 8-channel octophonic output
 ```
 
@@ -174,7 +229,7 @@ Two mechanisms prevent timbral homogeneity across the composition:
 - **Inter-field exclusion** — each sound can only appear in one field. A shared `global_seen` set across all fields guarantees no repetitions.
 
 ### Pulse grid
-The pulse grid encodes the Brownian inter-step distances as binary rational fractions. Each cell carries its own local BPM, derived from the per-step tension value: `BPM = 40 + tension × 80`, snapped to a set of practically readable values `[40, 48, 60, 72, 80, 96, 120]`. High tension produces a faster local pulse; low tension a slower one. The absolute durations in seconds remain invariant — the BPM is a gestural and interpretive indication, not a temporal constraint.
+The pulse grid encodes the Brownian inter-step distances as binary rational fractions. Each cell carries its own local BPM, derived from the per-step tension value: `BPM = 40 + tension × 80`, snapped to `[40, 48, 60, 72, 80, 96, 120]`. High tension produces a faster local pulse; low tension a slower one. The absolute durations in seconds remain invariant — the BPM is a gestural and interpretive indication, not a temporal constraint.
 
 ### Dynamic Form → Lachenmann mapping
 
@@ -230,7 +285,11 @@ Each field is visualised on an azimuthal axis (0–360°, mapped to 8-channel oc
 - **Pulse grid** — Brownian inter-step distances as binary rational fractions; each cell carries a local BPM derived from per-step tension (40–120 bpm, snapped to readable values)
 - **Red vertical lines** — pulse grid divisions crossing the full azimuthal range
 - **Two tension curves** — compositional profile (from Dynamic Form) and Brownian envelope (inverse of step duration)
-- **Articulation slurs** — curved lines connecting consecutive events of the same instrument within a gesture. Each succession of timbres forms a phrase that the performer reads as a single gestural arc. Line weight indicates the degree of timbral contrast between events: thin (gradual transition), medium (soft contrast), thick with ◇ (sharp contrast). Slur colour matches the Dynamic Form of the gesture (Forward → blue, Backward → red, Presence → green, Neutral → grey).
+- **Articulation slurs** — curved lines connecting consecutive events of the same instrument within a gesture. Each succession of timbres forms a phrase. Line weight indicates timbral contrast: thin (gradual), medium (soft contrast), thick with ◇ (sharp contrast). Slur colour matches the Dynamic Form (Forward → blue, Backward → red, Presence → green, Neutral → grey).
+
+The HTML score (`partitura_remnant.html`) is navigable in browser with ← → or keys 1–9, one gesture per page.
+
+The PS score (`brownian_notation.ps`) contains ConTimbre's own graphic notation for each sound (staff, noteheads, playing techniques), generated via `orchestrations_to_postscript` in the ConTimbre library.
 
 ---
 
@@ -238,33 +297,37 @@ Each field is visualised on an azimuthal axis (0–360°, mapped to 8-channel oc
 
 ```
 remnant/
-├── contimbre_explorer.py      # Dash application — composition and score
-├── umap_full.py               # UMAP pipeline (McAdams weights)
-├── generate_reaper.py         # Reaper project generator
-├── generate_midi.py           # MIDI file generator
-├── plot_brownian.py           # Matplotlib Brownian path plot
-├── partitura_html.py          # HTML score generator (navigable, one gesture per page)
-├── export_tsv.lisp            # ConTimbre corpus extraction via SBCL
-├── remnant_sc.scd             # SC — boot, buses, groups, SynthDefs
-├── remnant_conv.scd           # SC — convolution engine, IR generation
-├── remnant_flucos.scd         # SC — FluCoMa real-time analysis
-├── remnant_hud.scd            # SC — performance HUD (timer + controls)
+├── contimbre_explorer.py          # Dash — composition, score, export
+├── umap_full.py                   # UMAP pipeline (McAdams weights)
+├── sol_to_tsv_2.py                # SOL HQ → TSV pipeline
+├── generate_reaper.py             # Reaper project generator
+├── generate_midi.py               # MIDI file generator
+├── plot_brownian.py               # Matplotlib Brownian path plot
+├── partitura_html.py              # HTML score generator
+├── export_tsv.lisp                # ConTimbre corpus extraction (SBCL)
+├── contimbre_resolve_paths.lisp   # ConTimbre id → MP3 path resolver
+├── remnant_sc.scd                 # SC — boot, buses, groups, SynthDefs
+├── remnant_conv.scd               # SC — convolution engine, IR generation
+├── remnant_flucos.scd             # SC — FluCoMa real-time analysis
+├── remnant_hud.scd                # SC — performance HUD
+├── contimbre_test.scd             # SC — demo playback + recording (no orchestra)
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
-├── remnant_guida.docx         # Technical guide (IT)
-├── remnant_note_teoriche.docx # Theoretical notes (IT/EN)
+├── remnant_guida.docx             # Technical guide (IT)
+├── remnant_note_teoriche.docx     # Theoretical notes (IT/EN)
 └── scores/
-    ├── brownian_score.json    # (generated — not versioned)
-    ├── umap_full_coords.csv   # (generated — not versioned)
-    └── modes_cache.json       # (generated — not versioned)
+    ├── brownian_score.json        # (generated — not versioned)
+    ├── umap_contimbre_coords.csv  # (generated — not versioned)
+    ├── umap_sol_coords.csv        # (generated — not versioned)
+    └── modes_cache.json           # (generated — not versioned)
 ```
 
 ---
 
 ## Using a custom corpus
 
-Remnant is not tied to ConTimbre. Any sound corpus can be used as long as the acoustic descriptors are available in the expected TSV format.
+Remnant is not tied to ConTimbre or SOL. Any sound corpus can be used as long as the acoustic descriptors are available in the expected TSV format.
 
 ### TSV format
 

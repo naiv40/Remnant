@@ -21,8 +21,26 @@ import umap as umap_lib
 # ─── Data ───────────────────────────────────────────────────────────────────
 
 BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
-UMAP_FULL_PATH = os.path.join(BASE_DIR, "umap_full_coords.csv")
-UMAP_ORIG_PATH = "/tmp/contimbre_full.tsv"
+
+# ─── Corpus disponibili ──────────────────────────────────────────────────────
+CORPUS_OPTIONS = [
+    {"label": "ConTimbre",  "value": "contimbre"},
+    {"label": "SOL HQ",     "value": "sol"},
+]
+CORPUS_PATHS = {
+    "contimbre": {
+        "umap":  os.path.join(BASE_DIR, "umap_contimbre_coords.csv"),
+        "orig":  "/tmp/contimbre_full.tsv",
+    },
+    "sol": {
+        "umap":  os.path.join(BASE_DIR, "umap_sol_coords.csv"),
+        "orig":  os.path.join(BASE_DIR, "sol_coords_input.tsv"),
+    },
+}
+ACTIVE_CORPUS  = "contimbre"
+
+UMAP_FULL_PATH = CORPUS_PATHS[ACTIVE_CORPUS]["umap"]
+UMAP_ORIG_PATH = CORPUS_PATHS[ACTIVE_CORPUS]["orig"]
 SBCL_SCRIPT    = "/tmp/gen_brownian.lisp"
 SCORE_PATH     = os.path.join(BASE_DIR, "brownian_score.json")
 SCORES_DIR     = os.path.join(BASE_DIR, "scores")
@@ -267,14 +285,22 @@ LACHENMANN_COLORS = {
 LACHENMANN_CATEGORIES = ["Neutro", "Klang", "Farbklang", "Geräusch", "Kadenz", "Textur", "Stille"]
 
 FAMILY_COLORS = {
-    fam: color for fam, color in zip(
+    # SOL HQ
+    "Brass":         "#E05C5C",
+    "Strings":       "#4A90D9",
+    "Winds":         "#5CB85C",
+    "Keyboards":     "#F0A500",
+    "Percussion":    "#9B59B6",
+    "PluckedStrings":"#1ABC9C",
+    "PianoOrchidea": "#E67E22",
+    **{fam: color for fam, color in zip(
         ALL_FAMILIES,
         ["#4A90D9","#E05C5C","#5CB85C","#F0A500","#9B59B6",
          "#1ABC9C","#E67E22","#34495E","#E91E63","#00BCD4",
          "#8BC34A","#FF5722","#607D8B","#795548","#FFC107",
          "#3F51B5","#009688","#F44336","#673AB7","#2196F3",
          "#4CAF50","#FF9800","#9E9E9E"]
-    )
+    )}
 }
 
 DIR_ABBREV = {
@@ -371,6 +397,41 @@ family_filter_ids = [f"fam-{f.replace(' ', '_')}" for f in ALL_FAMILIES]
 instr_filter_ids  = [f"instr-{f.replace(' ', '_')}" for f in ALL_FAMILIES]
 
 
+def _filter_panel_from_df(df_sub):
+    """Costruisce il pannello filtro strumenti da un sottoinsieme del corpus."""
+    families = sorted(df_sub["family"].unique())
+    items = []
+    for fam in families:
+        instruments = sorted(df_sub[df_sub["family"] == fam]["instrument"].unique())
+        color = FAMILY_COLORS.get(fam, "#9B59B6")
+        items.append(html.Div([
+            html.Div([
+                dcc.Checklist(
+                    id=f"fam-{fam.replace(' ', '_')}",
+                    options=[{"label": "", "value": fam}],
+                    value=[fam],
+                    style={"display": "inline-block", "marginRight": "6px"},
+                    inputStyle={"accentColor": color},
+                ),
+                html.Span(fam, style={
+                    "fontFamily": "monospace", "fontSize": "10px",
+                    "color": color, "fontWeight": "bold",
+                }),
+            ], style={"display": "flex", "alignItems": "center", "marginBottom": "4px"}),
+            html.Div([
+                dcc.Checklist(
+                    id=f"instr-{fam.replace(' ', '_')}",
+                    options=[{"label": i, "value": i} for i in instruments],
+                    value=instruments,
+                    labelStyle={"display": "block", "fontFamily": "monospace",
+                                "fontSize": "9px", "color": "#555", "marginBottom": "2px"},
+                    inputStyle={"marginRight": "5px", "accentColor": color},
+                ),
+            ], style={"paddingLeft": "20px", "marginBottom": "8px"}),
+        ]))
+    return items
+
+
 # app.layout is set after home_layout() and score_layout() are defined below
 
 
@@ -390,6 +451,23 @@ def home_layout():
         # ── Left panel ──
         html.Div([
 
+            # ── Corpus selector ──────────────────────────────────────────
+            _label("Corpus"),
+            dcc.Dropdown(
+                id="corpus-selector",
+                options=CORPUS_OPTIONS,
+                value="contimbre",
+                clearable=False,
+                style={"fontFamily": "monospace", "fontSize": "10px",
+                       "marginBottom": "12px"},
+            ),
+            html.Div(id="corpus-status", style={
+                "fontFamily": "monospace", "fontSize": "10px",
+                "color": "#aaa", "minHeight": "14px", "marginBottom": "8px",
+            }),
+
+            _hr(),
+
             # ── Immagine sonora ──────────────────────────────────────────
             _label("Sound image"),
             _slider_block("Dark \u2190 centroid \u2192 Bright",   "img-center-slider",  0.0, 1.0, 0.05, 0.5),
@@ -405,15 +483,24 @@ def home_layout():
 
             _hr(),
 
-            # Filtri strumenti
+            # Filtri strumenti — dropdown multi-select dinamico
             _label("Instruments"),
-            html.Div(_filter_panel(), style={"maxHeight": "320px", "overflowY": "auto",
-                                              "marginBottom": "12px"}),
-            _btn("Apply filter", "filter-btn", color="#378ADD"),
-            html.Div(id="filter-status", style={
+            dcc.Dropdown(
+                id="instrument-multiselect",
+                options=[{"label": i, "value": i} for i in ALL_INSTRUMENTS],
+                value=ALL_INSTRUMENTS,
+                multi=True,
+                placeholder="All instruments selected",
+                style={"fontFamily": "monospace", "fontSize": "9px",
+                       "marginBottom": "8px"},
+            ),
+            _btn("Refine selection", "refine-btn", color="#378ADD"),
+            html.Div(id="refine-status", style={
                 "fontFamily": "monospace", "fontSize": "10px",
                 "color": "#378ADD", "minHeight": "14px", "marginBottom": "8px",
             }),
+            html.Div(id="instrument-filter-panel", style={"display": "none"}),
+            html.Div(id="filter-status", style={"display": "none"}),
 
             _hr(),
 
@@ -455,6 +542,11 @@ def home_layout():
             html.Div(id="html-score-status", style={
                 "fontFamily": "monospace", "fontSize": "10px",
                 "color": "#1D9E75", "minHeight": "14px", "marginBottom": "4px",
+            }),
+            _btn("Export PS notation", "ps-btn", outline=True),
+            html.Div(id="ps-status", style={
+                "fontFamily": "monospace", "fontSize": "10px",
+                "color": "#BA7517", "minHeight": "14px", "marginBottom": "4px",
             }),
             html.Div(id="export-status", style={
                 "fontFamily": "monospace", "fontSize": "10px",
@@ -575,7 +667,9 @@ def score_layout(gesture_idx, fig, status):
 app.layout = html.Div([
     dcc.Location(id="url", refresh=False),
     dcc.Store(id="path-store"),
+    dcc.Store(id="corpus-store", data="contimbre"),
     dcc.Store(id="df-store"),
+    dcc.Store(id="sound-image-store"),
     dcc.Store(id="gestures-store"),
     dcc.Store(id="dynamic-form-store", data={}),
     dcc.Store(id="selected-gesture", data=0),
@@ -585,6 +679,8 @@ app.layout = html.Div([
     html.Button(id="score-btn-root", n_clicks=0,
                 style={"display": "none"}),
     html.Button(id="html-score-btn-root", n_clicks=0,
+                style={"display": "none"}),
+    html.Button(id="ps-btn-root", n_clicks=0,
                 style={"display": "none"}),
 
     # Homepage — always in DOM, visible by default
@@ -1110,23 +1206,29 @@ def build_score_json(gestures, duration, df_active, bpm=60, dur_scale=1.0):
         events = []
         for ev in events_timed:
             sound   = ev["sound"]
-            sid     = sound.get("id", "")
-            azimuth = y_to_azimuth(sound["y"], y_min, y_max)
-            instr   = sound.get("instrument", sid.split(".")[0])
-            mode    = mode_map.get(sid, "")
+            sid       = sound.get("id", "")
+            azimuth   = y_to_azimuth(sound["y"], y_min, y_max)
+            instr     = sound.get("instrument", sid.split(".")[0])
+            family    = sound.get("family", "")
+            mode      = mode_map.get(sid, "")
+            technique = sound.get("technique", "")
             ch0, ch1, alpha = azimuth_to_channel(azimuth)
             events.append({
-                "t":          ev["t"],
-                "azimuth":    azimuth,
-                "channel":    ch0,
-                "channel_b":  ch1,
-                "pan_alpha":  alpha,
-                "ch_label":   channel_label(azimuth),
-                "id":         sid,
-                "instrument": instr,
-                "mode":       mode,
-                "tension":    ev.get("tension", g.get("tension", 0.5)),
-                "accent":     ev.get("accent", "none"),
+                "t":            ev["t"],
+                "azimuth":      azimuth,
+                "channel":      ch0,
+                "channel_b":    ch1,
+                "pan_alpha":    alpha,
+                "ch_label":     channel_label(azimuth),
+                "id":           sid,
+                "instrument":   instr,
+                "family":       family,
+                "mode":         mode,
+                "technique":    technique,
+                "tension":      ev.get("tension", g.get("tension", 0.5)),
+                "accent":       ev.get("accent", "none"),
+                "start_frame":  int(sound.get("start_frame", 0)) if sound.get("start_frame") is not None else None,
+                "duration_frames": int(sound.get("duration_frames", 0)) if sound.get("duration_frames") is not None else None,
             })
         # Evita sovrapposizioni per stesso strumento nello stesso field.
         # Durata stimata: DUR_MIN + tension * (DUR_MAX - DUR_MIN) in secondi.
@@ -1135,7 +1237,14 @@ def build_score_json(gestures, duration, df_active, bpm=60, dur_scale=1.0):
         events_sorted = sorted(events, key=lambda e: e["t"])
         for ev in events_sorted:
             instr    = ev["instrument"]
-            dur_est  = DUR_MIN + float(ev.get("tension", 0.5)) * (DUR_MAX - DUR_MIN)
+            # Usa durata reale se disponibile, altrimenti stima da tensione
+            sound    = ev.get("_sound", {})
+            # Usa duration_frames dall'evento se disponibile
+            dur_frames = ev.get("duration_frames")
+            if dur_frames and str(dur_frames) not in ("None","0"):
+                dur_est = round(int(dur_frames) / 44100.0, 3)
+            else:
+                dur_est = max(3.0, DUR_MIN + float(ev.get("tension", 0.5)) * (DUR_MAX - DUR_MIN))
             last_end = last_end_by_instr.get(instr, 0.0)
             if ev["t"] < last_end:
                 ev["t"] = round(last_end, 2)
@@ -1213,12 +1322,117 @@ def _upd_img_dyn(val):     return str(val)
 def _upd_img_radius(val):  return str(val)
 
 
+# ── Corpus switch ────────────────────────────────────────────────────────────
+@app.callback(
+    Output("corpus-store",            "data"),
+    Output("corpus-status",           "children"),
+    Output("df-store",                "data",     allow_duplicate=True),
+    Output("instrument-filter-panel", "children", allow_duplicate=True),
+    Output("umap-graph",              "figure",   allow_duplicate=True),
+    Input("corpus-selector",          "value"),
+    prevent_initial_call=True,
+)
+def switch_corpus(corpus):
+    global df_full, ALL_FAMILIES, ALL_INSTRUMENTS, X_MIN, X_MAX, Y_MIN, Y_MAX
+    umap_path = CORPUS_PATHS.get(corpus, CORPUS_PATHS["sol"])["umap"]
+    if not os.path.exists(umap_path):
+        return corpus, f"File not found: {umap_path}", None, _filter_panel(), go.Figure()
+
+    df_full          = pd.read_csv(umap_path)
+    ALL_FAMILIES     = sorted(df_full["family"].unique())
+    ALL_INSTRUMENTS  = sorted(df_full["instrument"].unique())
+    X_MIN, X_MAX     = df_full["x"].min(), df_full["x"].max()
+    Y_MIN, Y_MAX     = df_full["y"].min(), df_full["y"].max()
+
+    n = len(df_full)
+    status = f"✓ {n} sounds · {len(ALL_FAMILIES)} families"
+
+    fig = go.Figure()
+    for fam, grp in df_full.groupby("family"):
+        col = FAMILY_COLORS.get(fam, "#ccc")
+        fig.add_trace(go.Scattergl(
+            x=grp["x"], y=grp["y"], mode="markers",
+            marker=dict(size=5, color=col, opacity=0.25),
+            name=fam, text=grp["id"],
+            hovertemplate="<b>%{text}</b><extra></extra>",
+            legendgroup=fam,
+        ))
+    fig.update_layout(
+        paper_bgcolor="#fafafa", plot_bgcolor="#fafafa",
+        font=dict(family="Courier New", size=10, color="#555"),
+        margin=dict(l=20, r=20, t=20, b=20),
+        legend=dict(orientation="v", x=1.01, y=1, font=dict(size=9), itemsizing="constant"),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        hovermode="closest",
+    )
+    return corpus, status, df_full[["id","instrument","family","x","y"]].to_dict("records"), _filter_panel_from_df(df_full), fig
+
+
+# Refine selection — filtra sound-image-store per strumenti selezionati nel dropdown
+@app.callback(
+    Output("sound-image-store", "data",     allow_duplicate=True),
+    Output("refine-status",     "children"),
+    Output("umap-graph",        "figure",   allow_duplicate=True),
+    Input("refine-btn",              "n_clicks"),
+    State("sound-image-store",       "data"),
+    State("instrument-multiselect",  "value"),
+    prevent_initial_call=True,
+)
+def refine_selection(n_clicks, sound_store, selected):
+    if not selected:
+        return dash.no_update, "Select at least one instrument.", dash.no_update
+
+    base    = sound_store or df_full.to_dict("records")
+    df_base = pd.DataFrame(base)
+    df_out  = df_base[df_base["instrument"].isin(selected)].copy()
+
+    if len(df_out) < 5:
+        return dash.no_update, f"Too few sounds ({len(df_out)}).", dash.no_update
+
+    n_instr = df_out["instrument"].nunique()
+    status  = f"✓ {len(df_out)} sounds · {n_instr} instruments"
+
+    fig = go.Figure()
+    for fam, grp in df_full.groupby("family"):
+        col = FAMILY_COLORS.get(fam, "#ccc")
+        fig.add_trace(go.Scattergl(
+            x=grp["x"], y=grp["y"], mode="markers",
+            marker=dict(size=4, color=col, opacity=0.10),
+            name=fam, showlegend=False, hoverinfo="skip",
+        ))
+    for fam, grp in df_out.groupby("family"):
+        col = FAMILY_COLORS.get(fam, "#ccc")
+        fig.add_trace(go.Scattergl(
+            x=grp["x"], y=grp["y"], mode="markers",
+            marker=dict(size=7, color=col, opacity=0.85,
+                        line=dict(color="white", width=0.8)),
+            name=fam, text=grp["instrument"],
+            hovertemplate="<b>%{text}</b><extra></extra>",
+            legendgroup=fam,
+        ))
+    fig.update_layout(
+        paper_bgcolor="#fafafa", plot_bgcolor="#fafafa",
+        font=dict(family="Courier New", size=10, color="#555"),
+        margin=dict(l=20, r=20, t=20, b=20),
+        legend=dict(orientation="v", x=1.01, y=1, font=dict(size=9), itemsizing="constant"),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        hovermode="closest",
+    )
+    return df_out.to_dict("records"), status, fig
+
+
 # Sound image -> seleziona strumenti nel UMAP e aggiorna df-store
 @app.callback(
-    Output("df-store",         "data",     allow_duplicate=True),
-    Output("img-filter-status","children"),
-    Output("umap-graph",       "figure",   allow_duplicate=True),
-    Input("img-filter-btn",    "n_clicks"),
+    Output("df-store",                "data",     allow_duplicate=True),
+    Output("img-filter-status",       "children"),
+    Output("umap-graph",              "figure",   allow_duplicate=True),
+    Output("instrument-filter-panel", "children", allow_duplicate=True),
+    Output("sound-image-store",        "data",     allow_duplicate=True),
+    Output("instrument-multiselect",   "options",  allow_duplicate=True),
+    Output("instrument-multiselect",   "value",    allow_duplicate=True),
+    Input("img-filter-btn",           "n_clicks"),
     State("img-center-slider",  "value"),
     State("img-complex-slider", "value"),
     State("img-pitch-slider",   "value"),
@@ -1287,7 +1501,7 @@ def apply_sound_image(n_clicks, center_v, complex_v, pitch_v, dyn_v, radius):
     d_mean  = float(df_sub["_dist"].mean())
     status  = f"\u2713 {n_select} sounds \u00b7 {n_instr} instruments \u00b7 {n_fam} families  (dist={d_mean:.3f})"
 
-    df_out = df_sub[["id", "instrument", "family", "x", "y"]].copy()
+    df_out = df_sub[[c for c in ["id","instrument","family","x","y","start_frame","duration_frames","technique"] if c in df_sub.columns]].copy()
 
     fig = go.Figure()
     for fam, grp in df_full.groupby("family"):
@@ -1316,46 +1530,69 @@ def apply_sound_image(n_clicks, center_v, complex_v, pitch_v, dyn_v, radius):
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         hovermode="closest",
     )
-    return df_out.to_dict("records"), status, fig
+    df_records  = df_out.to_dict("records")
+    instrs      = sorted(df_out["instrument"].unique())
+    instr_opts  = [{"label": i, "value": i} for i in instrs]
+    return (df_records, status, fig, [], df_records, instr_opts, instrs)
 
 
 # Apply filter → recompute UMAP → update df-store
 @app.callback(
-    Output("df-store",      "data"),
+    Output("df-store",      "data",  allow_duplicate=True),
     Output("filter-status", "children"),
     Output("umap-graph",    "figure", allow_duplicate=True),
     Input("filter-btn",     "n_clicks"),
+    State("df-store",       "data"),
+    State("corpus-store",   "data"),
     [State(iid, "value") for iid in instr_filter_ids],
     prevent_initial_call=True,
 )
-def apply_filter(n_clicks, *instr_values):
-    # Raccogli tutti gli strumenti selezionati
+def apply_filter(n_clicks, df_store, corpus, *instr_values):
+    # Aggiorna UMAP_ORIG_PATH in base al corpus attivo
+    active_orig = CORPUS_PATHS.get(corpus or ACTIVE_CORPUS, CORPUS_PATHS[ACTIVE_CORPUS])["orig"]
+    # Raccogli tutti gli strumenti selezionati dai checkbox
     selected = []
     for vals in instr_values:
         if vals:
             selected.extend(vals)
 
-    if not selected:
-        return None, "Select at least one instrument.", go.Figure()
+    # Parti dal df-store se disponibile (risultato Sound image),
+    # altrimenti usa df_full
+    df_base = pd.DataFrame(df_store) if df_store else df_full.copy()
 
-    # Se il TSV originale esiste, usa colonne ricche per UMAP
-    if os.path.exists(UMAP_ORIG_PATH):
-        df_orig = pd.read_csv(UMAP_ORIG_PATH, sep="\t")
-        df_orig["pitch"] = pd.to_numeric(df_orig["pitch"], errors="coerce")
-        df_orig["pitch"] = df_orig["pitch"].replace(-1000.0, np.nan).fillna(df_orig["pitch"].median())
-        dynamic_map = {"ppp":1,"pp":2,"p":3,"mp":4,"mf":5,"f":6,"ff":7,"fff":8}
-        df_orig["dynamic_num"] = df_orig["dynamic"].map(dynamic_map).fillna(0)
-        df_sub = df_orig[df_orig["instrument"].isin(selected)].copy()
-        # Campiona max 100 per strumento per velocità
-        df_sub = df_sub.groupby("instrument").apply(
-            lambda x: x.sample(min(len(x), 100), random_state=42)
-        ).reset_index(drop=True)
-        features = ["pitch", "dynamic_num", "spectral_complexity", "spectral_center",
-                    "duration", "absolute_intensity"]
+    # Se nessun checkbox selezionato, usa tutto il df_base
+    if not selected:
+        df_sub = df_base.copy()
     else:
-        # Fallback: usa coordinate già calcolate, filtra solo
-        df_sub = df_full[df_full["instrument"].isin(selected)].copy()
-        features = ["x", "y"]
+        df_sub = df_base[df_base["instrument"].isin(selected)].copy()
+
+    if len(df_sub) < 5:
+        return None, "Too few sounds. Select more instruments.", go.Figure()
+
+    # Ricalcola UMAP solo se disponibili le features originali
+    features = ["x", "y"]
+    if os.path.exists(active_orig) and len(selected) > 0:
+        # Usa il TSV corretto in base al corpus attivo
+        for try_path in [active_orig]:
+            if os.path.exists(try_path):
+                try:
+                    df_orig = pd.read_csv(try_path, sep="\t")
+                    if "instrument" in df_orig.columns and df_orig["instrument"].isin(selected).any():
+                        df_orig["pitch"] = pd.to_numeric(df_orig.get("pitch", pd.Series()), errors="coerce")
+                        df_orig["pitch"] = df_orig["pitch"].replace(-1000.0, np.nan).fillna(0)
+                        dynamic_map = {"ppp":1,"pp":2,"p":3,"mp":4,"mf":5,"f":6,"ff":7,"fff":8}
+                        df_orig["dynamic_num"] = df_orig["dynamic"].map(dynamic_map).fillna(0) if "dynamic" in df_orig.columns else 0
+                        df_tmp = df_orig[df_orig["instrument"].isin(selected)].copy()
+                        df_tmp = df_tmp.groupby("instrument").apply(
+                            lambda x: x.sample(min(len(x), 100), random_state=42)
+                        ).reset_index(drop=True)
+                        avail = ["pitch","dynamic_num","spectral_complexity","spectral_center"]
+                        features = [c for c in avail if c in df_tmp.columns]
+                        if features:
+                            df_sub = df_tmp
+                        break
+                except Exception:
+                    pass
 
     if len(df_sub) < 10:
         return None, f"Too few sounds ({len(df_sub)}). Select more instruments.", go.Figure()
@@ -1371,7 +1608,7 @@ def apply_filter(n_clicks, *instr_values):
 
     n_instr = df_sub["instrument"].nunique()
     status = f"✓ {len(df_sub)} sounds · {n_instr} instruments"
-    df_out = df_sub[["id", "instrument", "family", "x", "y"]]
+    df_out = df_sub[[c for c in ["id","instrument","family","x","y","start_frame","duration_frames","technique"] if c in df_sub.columns]]
     _fig = go.Figure()
     for _fam, _grp in df_out.groupby("family"):
         _col = FAMILY_COLORS.get(_fam, "#ccc")
@@ -1498,6 +1735,7 @@ def update_dynamic_form_dropdowns(n_gestures, df_store):
     Output("path-store",    "data"),
     Output("gestures-store","data"),
     Input("generate-btn",   "n_clicks"),
+    State("sound-image-store",   "data"),
     State("df-store",            "data"),
     State("duration-slider",     "value"),
     State("gestures-slider",     "value"),
@@ -1511,14 +1749,18 @@ def update_dynamic_form_dropdowns(n_gestures, df_store):
     State("dynamic-form-store",  "data"),
     prevent_initial_call=True,
 )
-def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_noise,
+def generate(n_clicks, sound_image_store, df_store,
+             duration, n_gestures, steps, init_vol, drift_noise,
              threshold, attraction, spectral_div, df_values,
              dynform_store):
-    if df_store:
-        df_active = pd.DataFrame(df_store)
+    # Usa sound-image-store (da Refine/Sound image) se disponibile,
+    # altrimenti df-store, altrimenti df_full
+    active_store = sound_image_store or df_store
+    if active_store:
+        df_active = pd.DataFrame(active_store)
     else:
         df_active = df_full.copy()
-
+    
     # Legge i valori direttamente dai dropdown
     if df_values and len(df_values) >= n_gestures:
         dynamic_form_sequence = [v or "Neutral" for v in df_values[:n_gestures]]
@@ -1536,7 +1778,6 @@ def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_no
         attraction=attraction or 0.35,
         spectral_diversity=spectral_div if spectral_div is not None else 0.15,
     )
-    print("DEBUG tensions:", [(g["index"], g.get("tension"), g.get("bpm_local")) for g in gestures])
 
     fig = go.Figure()
 
@@ -1674,8 +1915,10 @@ def generate(n_clicks, df_store, duration, n_gestures, steps, init_vol, drift_no
                 "t":       ev["t"],
                 "tension": ev.get("tension", g.get("tension", 0.5)),
                 "accent":  ev.get("accent", "none"),
-                "sound":   {k: (float(v) if hasattr(v, "item") else v)
-                            for k, v in s.items() if k in ["id","instrument","family","x","y"]},
+                "sound":   {k: (int(v) if k in ("start_frame","duration_frames") and v is not None and str(v) not in ("nan","None")
+                                   else float(v) if hasattr(v, "item")
+                                   else v)
+                            for k, v in s.items() if k in ["id","instrument","family","x","y","start_frame","duration_frames","technique"]},
                 "gesture_idx": ev["gesture_idx"],
             })
         gestures_serial.append({
@@ -2060,9 +2303,10 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
     by_accent   = {}
 
     for ev_idx, ev in enumerate(events):
-        instr   = ev["instrument"]
-        mode    = ev.get("mode", "")
-        t       = ev["t"] - t_start
+        instr     = ev["instrument"]
+        mode      = ev.get("mode", "")
+        technique = ev.get("technique", "")
+        t         = ev["t"] - t_start
         azimuth = ev["azimuth"]
         tension = ev.get("tension", 0.5)
         t_rel   = t / g_dur
@@ -2099,13 +2343,15 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
         else:
             lx_pos  = mid_x
             xanchor = "center"
+        instr_label = f"{instr}" + (f"<br><i>{technique}</i>" if technique else "")
         fig.add_annotation(x=lx_pos, y=azimuth,
-            text=instr,
+            text=instr_label,
             font=dict(size=10, color=INK_MED, family="Georgia, serif"),
             showarrow=False, xanchor=xanchor, yanchor="bottom",
             yshift=5, bgcolor="rgba(255,255,255,0.92)", borderpad=2)
 
         tip = f"<b>{instr}</b>"
+        if technique: tip += f"<br><i>{technique}</i>"
         if mode: tip += f"<br><i>{mode}</i>"
         tip += (f"<br>t = {ev['t']:.1f}s  ·  {azimuth}°  ·  {ch_lbl}"
                 f"<br>{direction}  ·  tensione = {tension:.2f}"
@@ -2225,7 +2471,6 @@ def generate_score(n_clicks, gestures_data, df_store, duration, dynform_store):
         idx = g.get("index", 0)
         g["dynamic_form"] = dynform_store.get(str(idx), "Neutral")
         g["lachenmann"]   = "Neutro"  # compatibilita SC
-    print("DEBUG score input:", [(g["index"], g.get("tension"), g.get("bpm_local")) for g in gestures_data])
     if df_store:
         df_active = pd.DataFrame(df_store)
     else:
@@ -2262,6 +2507,105 @@ def export_html_score(n_clicks):
         return f"Error: {result.stderr[:80]}"
     except Exception as e:
         return f"Error: {str(e)[:80]}"
+
+
+@app.callback(
+    Output("ps-status", "children"),
+    Input("ps-btn-root", "n_clicks"),
+    State("path-store",  "data"),
+    prevent_initial_call=True,
+)
+def export_ps(n_clicks, store_data):
+    """
+    Chiama orchestrations_to_postscript via SBCL.
+    Ogni gesto della score browniana diventa un'orchestrazione separata.
+    Output: brownian_notation.ps nella stessa cartella dei .cOrc.
+    """
+    import subprocess, os as _os, json as _json, tempfile
+
+    if not store_data:
+        return "Generate a composition first."
+
+    score_path = SCORE_PATH
+    if not _os.path.exists(score_path):
+        return "Generate score first (click 'Generate score')."
+
+    with open(score_path) as f:
+        score = _json.load(f)
+
+    gestures = score.get("gestures", [])
+    if not gestures:
+        return "No gestures in score."
+
+    out_path = _os.path.join(BASE_DIR, "brownian_notation.ps")
+
+    # Build one orchestration per gesture: list of sound ids
+    gesture_blocks = ""
+    for g in gestures:
+        ids = [ev["id"] for ev in g.get("events", [])]
+        if not ids:
+            continue
+        id_list = " ".join(f'"{sid}"' for sid in ids)
+        gesture_blocks += f"""
+  (let* ((ids '({id_list}))
+         (orch (remove nil
+                 (mapcar (lambda (id)
+                           (find id contimbre:contimbre
+                                 :test #'string=
+                                 :key (lambda (s) (contimbre:get_value s "filename_short"))))
+                         ids))))
+    (push orch all-orchestrations))
+"""
+
+    lisp_script = f"""
+(ql:quickload '(:cl-ppcre :parse-float) :silent t)
+(defvar conTimbreDir "/Volumes/disk 1/conTimbre Standard V2")
+(load (format nil "~A/algorithmic orchestration/contimbre_library.lisp" conTimbreDir))
+(in-package :contimbre)
+
+(let ((all-orchestrations nil))
+{gesture_blocks}
+  (setf all-orchestrations (reverse (remove nil all-orchestrations)))
+  (if (null all-orchestrations)
+    (format t "PS-ERROR: no sounds resolved~%")
+    (progn
+      (contimbre:orchestrations_to_postscript
+        all-orchestrations
+        "english"
+        "{out_path}"
+        842
+        595
+        8
+        10
+        10
+        t
+      )
+      (format t "PS-OK ~A gestures -> {out_path}~%" (length all-orchestrations))
+    )
+  )
+)
+
+(sb-ext:exit)
+"""
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".lisp", delete=False) as f:
+        f.write(lisp_script)
+        tmp = f.name
+
+    try:
+        result = subprocess.run(["sbcl", "--load", tmp],
+                                capture_output=True, text=True, timeout=300)
+        _os.unlink(tmp)
+    except subprocess.TimeoutExpired:
+        return "Timeout SBCL."
+    except FileNotFoundError:
+        return "SBCL not found in PATH."
+
+    if "PS-OK" in result.stdout:
+        import re as _re
+        m = _re.search(r"PS-OK (.+)", result.stdout)
+        return f"✓ {m.group(1).strip()}" if m else "✓ brownian_notation.ps"
+    return f"Error: {(result.stderr or result.stdout)[:120]}"
 
 
 @app.callback(
@@ -2470,6 +2814,13 @@ app.clientside_callback(
     "function(n) { return n || 0; }",
     Output("html-score-btn-root", "n_clicks"),
     Input("html-score-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+app.clientside_callback(
+    "function(n) { return n || 0; }",
+    Output("ps-btn-root", "n_clicks"),
+    Input("ps-btn", "n_clicks"),
     prevent_initial_call=True,
 )
 

@@ -18,6 +18,8 @@ MIDI Program Change mapping:
   ─────    ───────    ────────────────────
   Field 1    PC 0        voice1
   Field 2    PC 1        field_01
+  Field 3    PC 2        temple block medium.m78.ppp.Sni2884
+  Field 4    PC 3        temple block medium.m78.ppp.Sni2884
 
 Each MIDI track already contains a Program Change at beat 0.
 ePlayer will switch program automatically when Reaper plays

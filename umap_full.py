@@ -8,7 +8,7 @@ import matplotlib.cm as cm
 
 # Path relativo alla cartella dello script
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-OUT_CSV    = os.path.join(SCRIPT_DIR, "umap_full_coords.csv")
+OUT_CSV    = os.path.join(SCRIPT_DIR, "umap_contimbre_coords.csv")
 OUT_PNG    = os.path.join(SCRIPT_DIR, "umap_full.png")
 
 df = pd.read_csv("/tmp/contimbre_full.tsv", sep="\t")
@@ -26,7 +26,7 @@ if "family_english" in df.columns:
 dynamic_map = {"ppp": 1, "pp": 2, "p": 3, "mp": 4, "mf": 5, "f": 6, "ff": 7, "fff": 8}
 df["dynamic_num"] = df["dynamic"].map(dynamic_map).fillna(0)
 
-df_sample = df.groupby("family").apply(
+df_sample = df.groupby("instrument").apply(
     lambda x: x.sample(min(len(x), 300), random_state=42)
 ).reset_index(drop=True)
 print(f"Campione: {len(df_sample)} suoni da {df_sample['family'].nunique()} famiglie")
@@ -47,8 +47,7 @@ embedding = umap.UMAP(n_components=2, n_neighbors=8, min_dist=0.1, random_state=
 df_sample["x"] = embedding[:, 0]
 df_sample["y"] = embedding[:, 1]
 
-df_sample[["id", "instrument", "family", "x", "y", "pitch", "dynamic",
-           "spectral_complexity", "spectral_center"]].to_csv(OUT_CSV, index=False)
+df_sample[[c for c in ["id","instrument","family","x","y","pitch","dynamic","spectral_complexity","spectral_center","technique","duration_frames","start_frame"] if c in df_sample.columns]].to_csv(OUT_CSV, index=False)
 
 families = df_sample["family"].unique()
 colors = cm.tab20(np.linspace(0, 1, len(families)))

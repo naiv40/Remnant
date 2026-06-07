@@ -301,6 +301,10 @@ s.sync;
 	~r_gestTension = tension ?? 0.3;
 	~r_currentCat  = cat;
 	~r_currentAz   = azimuth ?? 180.0;
+
+	// Manda dati al bridge p5.js
+	NetAddr("127.0.0.1", 9000).sendMsg("/remnant/category", cat);
+	NetAddr("127.0.0.1", 9000).sendMsg("/remnant/event", 0, 0, ~r_currentAz, finalT);
 	if(~conv_catDisplay.notNil) {
 		{ ~conv_catDisplay.string_(cat).stringColor_(dispCol) }.defer;
 	};

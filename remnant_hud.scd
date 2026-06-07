@@ -85,6 +85,7 @@ if(~r_score.notNil) {
 ~r_timerStartTime = 0.0;
 ~r_timerGestIdx   = 0;
 ~r_timerRoutine   = nil;
+~r_vizEventIdx    = 0;   // indice evento corrente per la visualizzazione p5.js
 
 // Avanza al gesto idx e chiama ~r_gesture globalmente
 ~r_hudAdvanceGesture = { |idx|
@@ -189,7 +190,7 @@ SynthDef(\r_rec, {
 	~r_recBuf  = Buffer.alloc(s, 65536, 2);
 	~r_recBuf.write(path, "AIFF", "float", 0, 0, true);
 	~r_recSynth = Synth(\r_rec, [\bufnum, ~r_recBuf.bufnum],
-	              target: ~r_gProc, addAction: \addToTail);
+	              target: ~r_gSpat, addAction: \addAfter);
 	("● REC → " ++ path).postln;
 };
 
@@ -266,7 +267,7 @@ SynthDef(\r_stereoFold, {
 				~r_nFields.do { |i|
 					var entry = ~r_synths[i];
 					if(entry.notNil and: { entry[2].notNil }) {
-						try { entry[2].set(mp, v) };
+						try { entry[2].set("amp", v) };
 					};
 				};
 			};
@@ -288,7 +289,7 @@ SynthDef(\r_stereoFold, {
 		MIDIFunc.cc({ |val|
 			var db = ((val / 127.0 * 80.0) - 80.0).round(1);
 			~r_gateThresh = db;
-			if(~r_gateSynth.notNil) { try { ~r_gateSynth.set(	hresh, db) } };
+			if(~r_gateSynth.notNil) { try { ~r_gateSynth.set("thresh", db) } };
 			if(~r_hudThrSlider.notNil) { { ~r_hudThrSlider.value_((db+80)/80) }.defer };
 		}, 3)
 	);
@@ -298,8 +299,7 @@ SynthDef(\r_stereoFold, {
 		MIDIFunc.cc({ |val|
 			var rv = (val / 127.0 * 8.0).round(0.1);
 			~r_gateRelease = rv;
-			if(~r_gateSynth.notNil) { try { ~r_gateSynth.set(
-eleaseTime, rv) } };
+			if(~r_gateSynth.notNil) { try { ~r_gateSynth.set("releaseTime", rv) } };
 			if(~r_hudRelSlider.notNil) { { ~r_hudRelSlider.value_(rv/8.0) }.defer };
 		}, 4)
 	);
@@ -480,10 +480,26 @@ cats.do { |cat, i|
 	btn.action = { |b|
 		catBtns.do { |ob| if(ob !== btn) { ob.value_(0) } };
 		if(b.value == 1) {
-			var t  = ~r_gestTension ? 0.3;
-			var az = ~r_currentAz  ? 180.0;
+			var t, az, gIdx, gest, evs, ev, evAz, evTen;
+			t  = ~r_gestTension ? 0.3;
+			az = ~r_currentAz  ? 180.0;
 			~r_gesture.(cat, t, az);
 			{ activeCatLabel.string_(cat).stringColor_(col) }.defer;
+
+			// Visualizzazione p5.js — avanza all'evento successivo nella score
+			gIdx = ~r_timerGestIdx ? 0;
+			gest = ~r_hudGestures[gIdx];
+			if(gest.notNil) {
+				evs = ~r_score["gestures"][gIdx]["events"];
+				if(evs.notNil and: { evs.size > 0 }) {
+					ev    = evs[~r_vizEventIdx % evs.size];
+					evAz  = ev["azimuth"].asFloat;
+					evTen = ev["tension"].asFloat;
+					~r_vizEventIdx = (~r_vizEventIdx + 1) % evs.size;
+					NetAddr("127.0.0.1", 9000).sendMsg("/remnant/category", cat);
+					NetAddr("127.0.0.1", 9000).sendMsg("/remnant/event", gIdx, ~r_vizEventIdx, evAz, evTen);
+				};
+			};
 		} {
 			{ activeCatLabel.string_("—").stringColor_(dimCol) }.defer;
 		};
@@ -596,7 +612,7 @@ thrSlider.action = { |sl|
 	db = ((sl.value * 80) - 80).round(1);
 	thrVal.string_(db.asString);
 	~r_gateThresh = db;
-	if(~r_gateSynth.notNil) { try { ~r_gateSynth.set(\thresh, db) } };
+	if(~r_gateSynth.notNil) { try { ~r_gateSynth.set("thresh", db) } };
 };
 layout.add(thrRow);
 
@@ -609,7 +625,7 @@ relSlider.action = { |sl|
 	rv = (sl.value * 8.0).round(0.1);
 	relVal.string_(rv.asString);
 	~r_gateRelease = rv;
-	if(~r_gateSynth.notNil) { try { ~r_gateSynth.set(\releaseTime, rv) } };
+	if(~r_gateSynth.notNil) { try { ~r_gateSynth.set("releaseTime", rv) } };
 };
 layout.add(relRow);
 
