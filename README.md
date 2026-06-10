@@ -270,6 +270,23 @@ The pulse grid encodes the Brownian inter-step distances as binary rational frac
 | Timbral tension | Lerdahl timbral hierarchy | Tension profile + distance threshold |
 | Timbral prolongation | McAdams prolongational hierarchy | IR categories + gesture sequencing |
 | Pulse grid | Proportional notation | Brownian inter-step distances → binary rational fractions, local BPM per cell from per-step tension |
+| Temporal consciousness | Husserl, *lebendige Gegenwart* | Living present composite in SC tension bus |
+
+### Living present (Husserl)
+
+The tension architecture in SuperCollider implements Husserl's *lebendige Gegenwart* — the structure of temporal consciousness as a unified flow of three moments:
+
+- **Retention** (*Retention*) — the immediate past that still resonates in the present. Implemented as an exponentially-weighted moving average of the last 8 tension values (`~r_retentionValue`). High-weight recent history, low-weight distant past.
+- **Primal impression** (*Urimpression*) — the instantaneous present tension value, composite of score tension and FluCoMa analysis.
+- **Protention** (*Protention*) — the imminent future anticipated before it arrives. A background routine reads `brownian_score.json` and pre-loads the tension of the next event 2 seconds in advance (`~r_protenzioneRoutine`).
+
+The final tension sent to all SynthDefs is the weighted composite:
+
+```
+living_present = impression × 0.60 + retention × 0.25 + protention × 0.15
+```
+
+The three moments are not separate — they form a single temporal thickness around the present. Timbral category transitions are never abrupt: the system carries memory of what has just sounded and anticipates what is about to arrive, producing a perceptible temporal depth at every moment of the performance.
 
 Full theoretical notes: `remnant_note_teoriche.docx`
 

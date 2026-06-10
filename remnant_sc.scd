@@ -124,7 +124,37 @@ s.waitForBoot({
     "5. State OK".postln;
 
     // ── 6. Functions ──────────────────────────────────────────────────────
-    ~r_tension = { (~r_gestTension + (~r_flucoTension * 0.4)).clip(0, 1) };
+
+    // ── Presente vivente (Husserl) ────────────────────────────────────────
+    // Ritenzione: storia esponenziale degli ultimi valori di tensione
+    // Protenzione: anticipazione lineare della direzione di tensione
+    ~r_retentionBuf  = Array.fill(8, { 0.3 });  // finestra ritentiva (8 valori)
+    ~r_retentionIdx  = 0;
+    ~r_protenzione   = 0.3;  // valore anticipato (aggiornato da score routine)
+
+    // Aggiorna la finestra ritentiva con il nuovo valore
+    ~r_updateRetention = { |val|
+        ~r_retentionBuf[~r_retentionIdx] = val;
+        ~r_retentionIdx = (~r_retentionIdx + 1) % 8;
+    };
+
+    // Calcola la ritenzione come media esponenziale decrescente
+    ~r_retentionValue = {
+        var weights = Array.fill(8, { |i| (0.65 ** (i + 1)) });
+        var wSum    = weights.sum;
+        var buf     = ~r_retentionBuf.rotate(~r_retentionIdx.neg);
+        (buf * weights).sum / wSum
+    };
+
+    // Presente vivente composito:
+    // Impressione 60% · Ritenzione 25% · Protenzione 15%
+    ~r_tension = {
+        var raw       = (~r_gestTension + (~r_flucoTension * 0.4)).clip(0, 1);
+        var retention = ~r_retentionValue.();
+        var present   = (raw * 0.60) + (retention * 0.25) + (~r_protenzione * 0.15);
+        ~r_updateRetention.(raw);
+        present.clip(0, 1)
+    };
 
     // Boot: one proc/xfade/spat chain per field
     ~r_boot = {
@@ -300,6 +330,34 @@ s.waitForBoot({
     } {
         "9. Score not found.".postln;
     };
+
+    // ── Routine protenzione — anticipa la tensione del prossimo evento ────
+    // Legge il score e pre-carica ~r_protenzione 2 secondi prima dell'evento.
+    ~r_protenzioneRoutine = Routine({
+        var PRE_WINDOW = 2.0;
+        loop {
+            var now   = Main.elapsedTime;
+            var score = ~r_score;
+            var found = false;
+            if(score.notNil) {
+                score["gestures"].do { |g|
+                    if(found.not) {
+                        (g["events"] ?? []).do { |ev|
+                            var t_abs = ev["t"].asFloat;
+                            var dist  = t_abs - now;
+                            if(dist > 0 and: { dist <= PRE_WINDOW } and: { found.not }) {
+                                ~r_protenzione = ev["tension"].asFloat;
+                                found = true;
+                            };
+                        };
+                    };
+                };
+            };
+            0.25.wait;
+        };
+    });
+    ~r_protenzioneRoutine.play(AppClock);
+    "Protenzione routine attiva (finestra: 2s)".postln;
 
     // ── Ready ─────────────────────────────────────────────────────────────
     "═══════════════════════════════════════".postln;
