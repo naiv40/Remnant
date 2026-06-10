@@ -43,6 +43,59 @@ UMAP_FULL_PATH = CORPUS_PATHS[ACTIVE_CORPUS]["umap"]
 UMAP_ORIG_PATH = CORPUS_PATHS[ACTIVE_CORPUS]["orig"]
 SBCL_SCRIPT    = "/tmp/gen_brownian.lisp"
 SCORE_PATH     = os.path.join(BASE_DIR, "brownian_score.json")
+PS_PATH        = os.path.join(BASE_DIR, "brownian_notation.ps")
+
+def _load_ps_abbrevs(ps_path):
+    """Legge brownian_notation.ps e ritorna dict {sound_id: abbreviazione}."""
+    import re as _re, json as _json
+    if not os.path.exists(ps_path):
+        return {}
+    try:
+        with open(ps_path, "r", encoding="latin-1") as f:
+            lines = f.readlines()
+    except Exception:
+        return {}
+    # Legge le abbreviazioni in ordine di apparizione
+    abbrevs = []
+    in_voice = False; in_instr = False
+    for ln in lines:
+        s = ln.strip()
+        if s == "start_voice":
+            in_voice = True; in_instr = False
+        elif s == "start_instrument" and in_voice:
+            in_instr = True
+        elif s == "end_instrument" and in_voice:
+            in_instr = False
+        elif in_instr and "showinstrument" in s:
+            parts = _re.findall(r'\(([^)]+)\)', s)
+            abbrevs.append(" ".join(p.strip() for p in parts if p.strip()))
+        elif s == "end_voice":
+            in_voice = False
+    # Associa alle voci della score per posizione
+    if not os.path.exists(SCORE_PATH):
+        return {}
+    try:
+        with open(SCORE_PATH) as f:
+            score = _json.load(f)
+    except Exception:
+        return {}
+    result = {}
+    idx = 0
+    for g in score.get("gestures", []):
+        for ev in g.get("events", []):
+            eid = ev.get("id", "")
+            if idx < len(abbrevs):
+                result[eid] = abbrevs[idx]
+            idx += 1
+    return result
+
+_ps_abbrev_cache = {}
+
+def get_ps_abbrev(sound_id, fallback=""):
+    global _ps_abbrev_cache
+    if not _ps_abbrev_cache:
+        _ps_abbrev_cache = _load_ps_abbrevs(PS_PATH)
+    return _ps_abbrev_cache.get(sound_id, fallback)
 SCORES_DIR     = os.path.join(BASE_DIR, "scores")
 os.makedirs(SCORES_DIR, exist_ok=True)
 
@@ -652,7 +705,7 @@ def score_layout(gesture_idx, fig, status):
             figure=fig,
             config={"displayModeBar": True,
                     "toImageButtonOptions": {
-                        "format": "png", "filename": f"partitura_g{gesture_idx+1}",
+                        "format": "svg", "filename": f"partitura_g{gesture_idx+1}",
                         "height": 700, "width": 1600, "scale": 2,
                     }},
             style={"height": "calc(100vh - 80px)"},
@@ -719,7 +772,7 @@ app.layout = html.Div([
                            config={"displayModeBar": True,
                                    "scrollZoom": True,
                                    "toImageButtonOptions": {
-                                       "format": "png", "filename": "partitura",
+                                       "format": "svg", "filename": "partitura",
                                        "height": 700, "width": 1600, "scale": 2}},
                            style={"height": "calc(100vh - 80px)"}),
 
@@ -1190,6 +1243,17 @@ def build_score_json(gestures, duration, df_active, bpm=60, dur_scale=1.0):
     y_min = df_active["y"].min()
     y_max = df_active["y"].max()
 
+    # Lookup pitch e dynamic dal CSV UMAP
+    _csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "umap_contimbre_coords.csv")
+    _pitch_map = {}; _dyn_map = {}
+    if os.path.exists(_csv_path):
+        import pandas as _pd
+        _df_csv = _pd.read_csv(_csv_path)
+        if "pitch" in _df_csv.columns:
+            _pitch_map = dict(zip(_df_csv["id"], _df_csv["pitch"]))
+        if "dynamic" in _df_csv.columns:
+            _dyn_map = dict(zip(_df_csv["id"], _df_csv["dynamic"]))
+
     # Raccoglie tutti gli id unici per una singola chiamata SBCL
     all_ids = list(dict.fromkeys(
         ev["sound"]["id"]
@@ -1229,6 +1293,8 @@ def build_score_json(gestures, duration, df_active, bpm=60, dur_scale=1.0):
                 "accent":       ev.get("accent", "none"),
                 "start_frame":  int(sound.get("start_frame", 0)) if sound.get("start_frame") is not None else None,
                 "duration_frames": int(sound.get("duration_frames", 0)) if sound.get("duration_frames") is not None else None,
+                "pitch":        float(_pitch_map.get(sid, 0) or 0),
+                "dynamic":      str(_dyn_map.get(sid, "") or ""),
             })
         # Evita sovrapposizioni per stesso strumento nello stesso field.
         # Durata stimata: DUR_MIN + tension * (DUR_MAX - DUR_MIN) in secondi.
@@ -2034,7 +2100,9 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
     dir_color  = DYNAMIC_FORM_COLORS.get(direction, "#888888")
     t_start    = g["t_start"]; t_end = g["t_end"]
     events     = g["events"]; n_ev = len(events)
-    g_dur      = max(t_end - t_start, 0.001)
+    # g_dur basato sull'ultimo evento reale, non su t_end nominale
+    last_t = max((ev["t"] for ev in events), default=t_end)
+    g_dur  = max(last_t - t_start + 1.0, t_end - t_start, 0.001)
     n_gestures = len(gestures)
 
     # Simbolo direzione per header testuale
@@ -2063,26 +2131,14 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
         font=dict(size=8, color=INK_LIGHT, family="Georgia, serif"),
         showarrow=False, xanchor="left", yanchor="bottom")
 
-    # Direzione temporale Thoresen — simbolo + nome
-    fig.add_annotation(x=g_dur*1.08, y=412,
-        text=f"<b>{DIR_GLYPH.get(direction, '—')}</b>",
-        font=dict(size=18, color=dir_color, family="Georgia, serif"),
-        showarrow=False, xanchor="right", yanchor="bottom")
-    fig.add_annotation(x=g_dur*1.08, y=401,
-        text=f"<i>{direction}</i>",
-        font=dict(size=10, color=dir_color, family="Georgia, serif"),
-        showarrow=False, xanchor="right", yanchor="bottom")
-
-    # Navigazione gesti con colore direzione
+    # Navigazione gesti
     nav_parts = []
     for ni in range(n_gestures):
-        nd = gestures[ni].get("dynamic_form", "Neutral")
-        nc = DYNAMIC_FORM_COLORS.get(nd, "#888")
-        glyph = DIR_GLYPH.get(nd, "—")
+        nc = DYNAMIC_FORM_COLORS.get(gestures[ni].get("dynamic_form", "Neutral"), "#888")
         if ni == idx:
             nav_parts.append(f"<b>{ni+1}</b>")
         else:
-            nav_parts.append(f'<span style="color:{nc}">{ni+1}{glyph}</span>')
+            nav_parts.append(f'<span style="color:{nc}">{ni+1}</span>')
     fig.add_annotation(x=g_dur*1.08, y=394,
         text="  ".join(nav_parts),
         font=dict(size=8, color=INK_LIGHT, family="Georgia, serif"),
@@ -2173,8 +2229,11 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
         raw_dists  = step_dists[1:]
         total_dist = sum(raw_dists) if sum(raw_dists) > 0 else 1.0
 
-        # Durate in secondi per ogni cella (proporzionali alle distanze browniane)
-        cell_secs = [d / total_dist * g_dur for d in raw_dists]
+        # Durate in secondi per ogni cella — somma esattamente g_dur
+        cell_secs_raw = [d / total_dist * g_dur for d in raw_dists]
+        # Normalizza per garantire somma = g_dur (floating point safety)
+        _sum = sum(cell_secs_raw)
+        cell_secs = [s / _sum * g_dur for s in cell_secs_raw] if _sum > 0 else cell_secs_raw
 
         # BPM canonico tale che g_dur * BPM / 60 sia il più vicino a un intero.
         # Garantisce che la somma delle frazioni corrisponda alla durata reale.
@@ -2215,7 +2274,7 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
         frac_labels   = []
         bpm_per_cell  = []
         tick_times    = [0.0]
-        BINARY_DENOMS = [1, 2, 4, 8, 16, 32]
+        BINARY_DENOMS = [1, 2, 4, 8]
         BPM_CLEAN_LOCAL = [40, 48, 60, 72, 80, 96, 120]
         for ci, dur_sec in enumerate(cell_secs):
             # Tensione locale della cella (passo ci+1, perché dists[0]=0)
@@ -2235,7 +2294,18 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
             d = _gcd(best_num, best_den)
             fn, fd = best_num // d, best_den // d
             frac_labels.append(f"{fn}/{fd}" if fd > 1 else str(fn))
-            tick_times.append(tick_times[-1] + dur_sec)
+            if ci < len(cell_secs) - 1:
+                tick_times.append(tick_times[-1] + dur_sec)
+            else:
+                tick_times.append(g_dur)  # forza chiusura esatta
+
+        # Debug: verifica somma frazioni = g_dur
+        sum_secs = sum(
+            (int(l.split('/')[0]) / int(l.split('/')[1]) if '/' in str(l) else float(l))
+            * (60.0 / bpm_per_cell[i])
+            for i, l in enumerate(frac_labels)
+        )
+        print(f"  Field {idx+1}: g_dur={g_dur:.3f}s  Σfrazioni={sum_secs:.3f}s  diff={abs(sum_secs-g_dur):.3f}s")
 
         # Linea base
         fig.add_shape(type="line", x0=0, x1=g_dur, y0=RH_Y, y1=RH_Y,
@@ -2246,45 +2316,40 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
             y0=RH_Y - 3, y1=RH_Y + 3,
             line=dict(color=INK_LIGHT, width=1.0))
 
-        # Tacche agli onset di ogni cella + etichette alternate
+        # Frazioni orizzontali sotto la partitura — sistema Ferneyhough
+        # Ogni cella è indipendente: fn/fd + ♩=bpm proprio
+        FC = "rgba(80,80,80,0.65)"
         for i, (t_tick, label) in enumerate(zip(tick_times[:-1], frac_labels)):
-            # Barra rossa verticale attraverso tutta la partitura (0°–360°)
-            # La prima tacca (i=0, t=0) e l'ultima non vengono tracciate
-            # perché coincidono con i bordi del gesto
             if i > 0:
                 fig.add_shape(type="line",
-                    x0=t_tick, x1=t_tick,
-                    y0=0, y1=360,
+                    x0=t_tick, x1=t_tick, y0=0, y1=360,
                     line=dict(color="#E05C5C", width=1.2),
-                    opacity=0.7,
-                    layer="below")
+                    opacity=0.7, layer="below")
+            bpm_c = bpm_per_cell[i] if i < len(bpm_per_cell) else bpm_score
             # Tacca sulla linea base
             fig.add_shape(type="line",
                 x0=t_tick, x1=t_tick,
-                y0=RH_Y - 3, y1=RH_Y + 3,
+                y0=RH_Y - 4, y1=RH_Y + 4,
                 line=dict(color="#E05C5C" if i > 0 else INK, width=1.2))
-            # Etichetta alternata sopra/sotto: frazione + BPM locale
-            above  = (i % 2 == 1)
-            offset = 8 if i == 0 else 5
-            y_text = RH_Y + offset if above else RH_Y - offset
-            anchor = "bottom" if above else "top"
-            bpm_c = bpm_per_cell[i] if i < len(bpm_per_cell) else bpm_score
-            fig.add_annotation(x=t_tick, y=y_text,
-                text=f"<b>{label}</b><br><span style='font-size:9px;color:#555'>♩={bpm_c}</span>",
-                font=dict(size=11, color=INK, family="Georgia, serif"),
-                showarrow=False, xanchor="center", yanchor=anchor)
+            # Frazione + BPM su due righe sotto la tacca
+            fig.add_annotation(x=t_tick, y=RH_Y - 6,
+                text=f"<b>{label}</b>",
+                font=dict(size=10, color=FC, family="Georgia, serif"),
+                showarrow=False, xanchor="left", yanchor="top")
+            fig.add_annotation(x=t_tick, y=RH_Y - 17,
+                text=f"<i>♩={bpm_c}</i>",
+                font=dict(size=8, color="rgba(80,80,80,0.75)", family="Georgia, serif"),
+                showarrow=False, xanchor="left", yanchor="top")
 
-        # Etichetta e Σ a destra
-        fig.add_annotation(x=g_dur * 1.01, y=RH_Y,
-            text="pulse grid",
-            font=dict(size=7, color=INK_FAINT, family="Georgia, serif"),
-            showarrow=False, xanchor="left", yanchor="middle")
-        fig.add_annotation(x=g_dur * 1.01, y=RH_Y - 6,
-            text=f"Σ {round(g_dur, 2)}s",
-            font=dict(size=7, color=INK_FAINT, family="Georgia, serif"),
-            showarrow=False, xanchor="left", yanchor="top")
 
     # ── Suoni — barre + simboli ─────────────────────────────────────────────
+    # Filigrana F.N
+    fig.add_annotation(
+        x=g_dur * 0.5, y=185,
+        text=f"<b>F.{idx+1}</b>",
+        font=dict(size=180, color="rgba(160,160,160,0.38)", family="Georgia, serif"),
+        showarrow=False, xanchor="center", yanchor="middle")
+
     # Ogni evento riceve sempre una testa con il simbolo della direzione.
     # Gli accenti speciali (release/goal/termination/warning) si sovrappongono.
     dur_min, dur_max_v = 0.4, 7.0
@@ -2297,7 +2362,7 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
         "Presence": "circle-open",
         "Neutral":  "line-ew",
     }
-    default_sym = DIR_DEFAULT_SYM.get(direction, "circle-open")
+    default_sym = "circle-open"
 
     default_pts = {"x": [], "y": [], "sz": [], "tip": [], "op": []}
     by_accent   = {}
@@ -2325,6 +2390,43 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
         fig.add_shape(type="line", x0=t_draw, x1=bar_end,
             y0=azimuth, y1=azimuth,
             line=dict(color=INK, width=line_w), opacity=line_op)
+
+        # ── Mini-rigo con testa di nota ──────────────────────────────────
+        pitch_val = float(ev.get("pitch", 0) or 0)
+        dyn_val   = ev.get("dynamic", "") or ""
+        if pitch_val and pitch_val > 0:
+            # 5 linee del rigo: spaziate di 2.5° sopra l'azimuth
+            STAFF_STEP = 2.5
+            STAFF_Y0   = azimuth + 6
+            for li in range(5):
+                ly = STAFF_Y0 + li * STAFF_STEP
+                fig.add_shape(type="line",
+                    x0=t_draw - 0.002*g_dur, x1=t_draw + 0.032*g_dur,
+                    y0=ly, y1=ly,
+                    line=dict(color=INK_LIGHT, width=0.6), opacity=0.7)
+            # Posizione testa: pitch MIDI 0-127 → linee rigo 0-4
+            # Normalizza pitch sul range del gesto per posizione relativa
+            all_pitches = [float(e.get("pitch",0) or 0) for e in events if float(e.get("pitch",0) or 0) > 0]
+            p_min = min(all_pitches) if all_pitches else 0
+            p_max = max(all_pitches) if all_pitches else 127
+            p_range = max(p_max - p_min, 1)
+            note_line = (pitch_val - p_min) / p_range * 4  # 0..4
+            note_y = STAFF_Y0 + note_line * STAFF_STEP
+            # Testa di nota — solo pitch, senza gambo
+            fig.add_annotation(
+                x=t_draw + 0.015*g_dur, y=note_y,
+                text="●" if pitch_val > 0 else "×",
+                font=dict(size=8, color=INK, family="GUIDO2, Bravura, Leland, Georgia, serif"),
+                showarrow=False, xanchor="center", yanchor="middle")
+
+        # Dinamica all'inizio della barra, sotto
+        if dyn_val:
+            fig.add_annotation(
+                x=t_draw, y=azimuth,
+                text=f"<i>{dyn_val}</i>",
+                font=dict(size=9, color=INK, family="Georgia, serif"),
+                showarrow=False, xanchor="left", yanchor="top", yshift=-5)
+
         # Terminatore solo se non clippato
         if bar_end < g_dur:
             fig.add_shape(type="line",
@@ -2334,21 +2436,6 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
 
         ch_lbl = ev.get("ch_label", channel_label(azimuth))
         # ch_lbl non viene visualizzato in partitura — è nel JSON per SuperCollider
-
-        # Etichetta strumento — ancora a destra se vicina al bordo destro
-        mid_x   = (t_draw + bar_end) / 2
-        if t_draw > g_dur * 0.72:
-            lx_pos  = min(t_draw - 2, g_dur * 0.97)
-            xanchor = "right"
-        else:
-            lx_pos  = mid_x
-            xanchor = "center"
-        instr_label = f"{instr}" + (f"<br><i>{technique}</i>" if technique else "")
-        fig.add_annotation(x=lx_pos, y=azimuth,
-            text=instr_label,
-            font=dict(size=10, color=INK_MED, family="Georgia, serif"),
-            showarrow=False, xanchor=xanchor, yanchor="bottom",
-            yshift=5, bgcolor="rgba(255,255,255,0.92)", borderpad=2)
 
         tip = f"<b>{instr}</b>"
         if technique: tip += f"<br><i>{technique}</i>"
@@ -2386,69 +2473,29 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
                         opacity=default_pts["op"]),
             customdata=default_pts["tip"],
             hovertemplate="%{customdata}<extra></extra>",
-            showlegend=True,
-            name=f"{DIR_GLYPH.get(direction,'—')} {direction}",
+            showlegend=False,
             legendgroup="default"))
 
-    # Trace accenti speciali sovrapposti
-    ACCENT_LABEL = {
-        "release":     "release point ▲",
-        "goal":        "goal point ●",
-        "termination": "termination ▼",
-        "warning":     "warning point ◇",
-    }
-    for acc_name, data in by_accent.items():
-        sym, _, _ = ACCENT_SYMBOL.get(acc_name, ("circle", 7, INK))
-        fig.add_trace(go.Scatter(
-            x=data["x"], y=data["y"], mode="markers",
-            marker=dict(symbol=sym, size=data["sz"], color=INK,
-                        line=dict(color=INK, width=1.6),
-                        opacity=data["op"]),
-            customdata=data["tip"],
-            hovertemplate="%{customdata}<extra></extra>",
-            showlegend=True,
-            name=ACCENT_LABEL.get(acc_name, acc_name),
-            legendgroup=acc_name))
 
-    # ── Legenda canali 8ch ────────────────────────────────────────────────────
-    ch_labels = [
-        ("0°","CH1","frontale centro"), ("45°","CH2","frontale destra"),
-        ("90°","CH3","lat. destra"),    ("135°","CH4","post. destra"),
-        ("180°","CH5","post. centro"),  ("225°","CH6","post. sinistra"),
-        ("270°","CH7","lat. sinistra"), ("315°","CH8","front. sinistra"),
-    ]
-    step = g_dur / max(len(ch_labels), 1)
-    for li, (az_l, ch_l, _) in enumerate(ch_labels):
-        lx = li * step
-        fig.add_trace(go.Scatter(x=[lx], y=[-28], mode="markers",
-            marker=dict(symbol="circle-open" if li%2==0 else "circle",
-                        size=6, color=INK, line=dict(color=INK, width=1)),
-            showlegend=False, hoverinfo="skip"))
-        fig.add_annotation(x=lx+step*0.12, y=-28,
-            text=f"{ch_l} {az_l}",
-            font=dict(size=7, color=INK_LIGHT, family="Georgia, serif"),
-            showarrow=False, xanchor="left", yanchor="middle")
 
     fig.update_layout(
         paper_bgcolor=PAPER, plot_bgcolor=PAPER,
-        margin=dict(l=60, r=40, t=60, b=80),
+        margin=dict(l=60, r=20, t=30, b=40),
         font=dict(family="Georgia, serif", size=8, color=INK_LIGHT),
-        xaxis=dict(range=[-g_dur*0.04, g_dur*1.12],
-            showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(range=[-95, 420], showgrid=False, zeroline=False,
-            showticklabels=False, side="right"),
+        uirevision="score",
+        xaxis=dict(range=[-g_dur*0.02, g_dur*1.15],
+            showgrid=False, zeroline=False, showticklabels=False,
+            fixedrange=False),
+        yaxis=dict(range=[-95, 390], showgrid=False, zeroline=False,
+            showticklabels=False, side="right", fixedrange=True),
         hovermode="closest",
         dragmode="pan",
         hoverlabel=dict(bgcolor="white", bordercolor=INK_FAINT,
             font_size=10, font_family="Georgia, serif"),
-        legend=dict(orientation="h", x=0, y=-0.1,
-            font=dict(size=8, color=INK_LIGHT, family="Georgia, serif"),
-            bgcolor="rgba(0,0,0,0)", borderwidth=0),
-        showlegend=True)
+        showlegend=False)
 
     status = (f"field {idx+1} / {n_gestures}  ·  {n_ev} events  ·  "
-              f"{t_start:.0f}\u2033 \u2014 {t_end:.0f}\u2033  ·  "
-              f"{DIR_GLYPH.get(direction,'—')} {direction}")
+              f"{t_start:.0f}\u2033 \u2014 {t_end:.0f}\u2033")
     
     return fig, status
 
@@ -2725,6 +2772,22 @@ def export_eplayer(n_clicks, store_data):
 
 from flask import request, jsonify
 
+# ── ConTimbre HTML map — scansione cartelle ──────────────────────────────────
+_CT_HTML_ROOT = '/Volumes/disk 1/conTimbre Standard V2/data/groups'
+_INSTR_HTML_MAP = {}
+if os.path.exists(_CT_HTML_ROOT):
+    for _cg in os.listdir(_CT_HTML_ROOT):
+        _cgp = os.path.join(_CT_HTML_ROOT, _cg)
+        if not os.path.isdir(_cgp): continue
+        for _cs in os.listdir(_cgp):
+            _csp = os.path.join(_cgp, _cs)
+            if not os.path.isdir(_csp): continue
+            for _ci in os.listdir(_csp):
+                _chp = os.path.join(_csp, _ci, 'html')
+                if os.path.isdir(_chp):
+                    _INSTR_HTML_MAP[_ci.lower()] = _chp
+print(f"  ConTimbre HTML map: {len(_INSTR_HTML_MAP)} strumenti")
+
 # ── Saved scores ────────────────────────────────────────────────────────────
 
 def _list_scores():
@@ -2823,6 +2886,79 @@ app.clientside_callback(
     Input("ps-btn", "n_clicks"),
     prevent_initial_call=True,
 )
+
+@app.server.route('/open_contimbre', methods=['GET'])
+def open_contimbre_route():
+    """Apre il file HTML ConTimbre nel browser del Mac."""
+    import subprocess as _sp
+    path = request.args.get('path', '')
+    if not path or not os.path.exists(path):
+        return jsonify({"status": "not found", "path": path}), 404
+    # Apri con 'open' (macOS) — apre nel browser default
+    _sp.Popen(['open', path])
+    return jsonify({"status": "ok"})
+
+
+@app.callback(
+    Output("score-status-page", "children", allow_duplicate=True),
+    Input("score-graph", "clickData"),
+    State("gestures-store", "data"),
+    State("url", "pathname"),
+    prevent_initial_call=True,
+)
+def open_contimbre_on_click(click_data, gestures_data, pathname):
+    """Al click su un evento nella partitura, apre la scheda ConTimbre."""
+    import re as _re
+    if not click_data or not gestures_data:
+        raise dash.exceptions.PreventUpdate
+
+    # Ricava gesture index dall'URL
+    m = _re.match(r'^/partitura/(\d+)$', pathname or "/")
+    if not m:
+        raise dash.exceptions.PreventUpdate
+    g_idx = int(m.group(1)) - 1
+
+    # Punto cliccato
+    pt = click_data.get("points", [{}])[0]
+    custom = pt.get("customdata", "")
+    if not custom:
+        raise dash.exceptions.PreventUpdate
+
+    # Cerca l'evento corrispondente nel gesto
+    g = next((g for g in gestures_data if g.get("index") == g_idx), None)
+    if not g:
+        raise dash.exceptions.PreventUpdate
+
+    # Trova evento con strumento corrispondente (dal tooltip)
+    instr = None
+    for line in str(custom).split("<br>"):
+        line = line.replace("<b>", "").replace("</b>", "").strip()
+        if line and not any(c in line for c in ["t=", "°", "CH", "·", "tension"]):
+            instr = line.lower()
+            break
+
+    if not instr:
+        raise dash.exceptions.PreventUpdate
+
+    html_dir = _INSTR_HTML_MAP.get(instr)
+    if not html_dir:
+        raise dash.exceptions.PreventUpdate
+
+    # Trova il file HTML per questo evento (cerca per strumento)
+    evts = g.get("events_timed", [])
+    for ev_wrap in evts:
+        ev = ev_wrap.get("sound", {}) if isinstance(ev_wrap.get("sound"), dict) else ev_wrap
+        sid = ev.get("id", "")
+        if ev.get("instrument", "").lower() == instr and sid:
+            fname = f"usage permitted only with a contimbre.com license {sid}.htm"
+            path  = os.path.join(html_dir, fname)
+            if os.path.exists(path):
+                import subprocess as _sp
+                _sp.Popen(['open', path])
+                return f"→ {ev.get('instrument','')} · {ev.get('mode','')}"
+
+    raise dash.exceptions.PreventUpdate
+
 
 if __name__ == "__main__":
     print("Avvio ConTimbre Explorer su http://127.0.0.1:8050")

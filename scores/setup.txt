@@ -18,8 +18,18 @@ MIDI Program Change mapping:
   ─────    ───────    ────────────────────
   Field 1    PC 0        voice1
   Field 2    PC 1        field_01
-  Field 3    PC 2        temple block medium.m78.ppp.Sni2884
-  Field 4    PC 3        temple block medium.m78.ppp.Sni2884
+  Field 3    PC 2        chinese cymbal.m5.ppp.Dmc41
+  Field 4    PC 3        chinese cymbal.m5.ppp.Dmc41
+  Field 5    PC 4        chinese cymbal.m5.ppp.Dmc41
+  Field 6    PC 5        chinese cymbal.m5.ppp.Dmc41
+  Field 7    PC 6        chinese cymbal.m5.ppp.Dmc41
+  Field 8    PC 7        chinese cymbal.m5.ppp.Dmc41
+  Field 9    PC 8        chinese cymbal.m5.ppp.Dmc41
+  Field 10   PC 9        chinese cymbal.m5.ppp.Dmc41
+  Field 11   PC 10       chinese cymbal.m5.ppp.Dmc41
+  Field 12   PC 11       chinese cymbal.m5.ppp.Dmc41
+  Field 13   PC 12       chinese cymbal.m5.ppp.Dmc41
+  Field 14   PC 13       chinese cymbal.m5.ppp.Dmc41
 
 Each MIDI track already contains a Program Change at beat 0.
 ePlayer will switch program automatically when Reaper plays

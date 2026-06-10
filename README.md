@@ -32,8 +32,8 @@ umap_contimbre_coords.csv  /  umap_sol_coords.csv
         ├─ Inter-field sound exclusion (no repeated sounds across fields)
         ├─ Interactive graphic score with proportional pulse grid
         ├─ Export .cOrc / .cePlayerOrc  (SBCL)
-        ├─ Export HTML score  (navigable, one gesture per page)
         ├─ Export PS notation  (ConTimbre graphic notation via SBCL)
+        ├─ Click-to-open ConTimbre HTML (instrument notation via browser)
         └─ brownian_score.json  →  SuperCollider
                 ├─ remnant_sc.scd      (boot, buses, groups, synths)
                 ├─ remnant_conv.scd    (convolution engine, IR generation)
@@ -134,8 +134,7 @@ Alternatively, select instrument families manually and click **Apply filter** �
 4. Click **Generate composition**
 5. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
 6. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
-7. Click **Export HTML score** — generates `~/Desktop/partitura_remnant.html`
-8. Click **Export PS notation** — generates `brownian_notation.ps` with ConTimbre graphic notation via SBCL
+7. Click **Export PS notation** — generates `brownian_notation.ps` with ConTimbre graphic notation via SBCL
 
 ### Live performance (remnant_hud.scd)
 All fields play simultaneously as a single body. The HUD is the only live interface.
@@ -281,13 +280,14 @@ Full theoretical notes: `remnant_note_teoriche.docx`
 Each field is visualised on an azimuthal axis (0–360°, mapped to 8-channel octophonic panning). The score displays:
 
 - **Sound bars** — duration and onset of each event, clipped to field boundaries
-- **Accent symbols** — release point ▲, goal point ●, termination ▼, warning point ◇ (Aural Sonology notation)
-- **Pulse grid** — Brownian inter-step distances as binary rational fractions; each cell carries a local BPM derived from per-step tension (40–120 bpm, snapped to readable values)
+- **Pitch notation** — 5-line mini staff above/below each event bar; filled notehead (●) positioned by relative pitch within the gesture; alternates above/below to avoid overlap
+- **Dynamic markings** — italic dynamic (p, mf, f, fff…) at the start of each bar, below the line
+- **Pulse grid** — Brownian inter-step distances as binary rational fractions (denominator ≤ 8, Ferneyhough system); each cell is independent with its own local BPM
 - **Red vertical lines** — pulse grid divisions crossing the full azimuthal range
 - **Two tension curves** — compositional profile (from Dynamic Form) and Brownian envelope (inverse of step duration)
-- **Articulation slurs** — curved lines connecting consecutive events of the same instrument within a gesture. Each succession of timbres forms a phrase. Line weight indicates timbral contrast: thin (gradual), medium (soft contrast), thick with ◇ (sharp contrast). Slur colour matches the Dynamic Form (Forward → blue, Backward → red, Presence → green, Neutral → grey).
-
-The HTML score (`partitura_remnant.html`) is navigable in browser with ← → or keys 1–9, one gesture per page.
+- **Watermark** — field index (F.1, F.2 …) as a large semi-transparent background element
+- **ConTimbre links** — click any event marker to open the instrument's ConTimbre HTML page in the browser (playing technique, notation, audio examples)
+- **SVG export** — camera button in the Plotly toolbar saves a fully vectorial SVG (all elements are paths, editable in Illustrator or Inkscape)
 
 The PS score (`brownian_notation.ps`) contains ConTimbre's own graphic notation for each sound (staff, noteheads, playing techniques), generated via `orchestrations_to_postscript` in the ConTimbre library.
 
@@ -303,7 +303,6 @@ remnant/
 ├── generate_reaper.py             # Reaper project generator
 ├── generate_midi.py               # MIDI file generator
 ├── plot_brownian.py               # Matplotlib Brownian path plot
-├── partitura_html.py              # HTML score generator
 ├── export_tsv.lisp                # ConTimbre corpus extraction (SBCL)
 ├── contimbre_resolve_paths.lisp   # ConTimbre id → MP3 path resolver
 ├── remnant_sc.scd                 # SC — boot, buses, groups, SynthDefs
@@ -314,7 +313,7 @@ remnant/
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
-├── remnant_guida.docx             # Technical guide (IT)
+├── remnant_guida.docx             # System guide v4 (IT)
 ├── remnant_note_teoriche.docx     # Theoretical notes (IT/EN)
 └── scores/
     ├── brownian_score.json        # (generated — not versioned)
@@ -351,5 +350,5 @@ After creating the TSV, run `umap_full.py` to recompute the timbral space. The r
 
 MIT License — see LICENSE file.
 
-Research project. In development for international residencies.  
-Open to collaborations with ensembles and music research centres.
+Research project. Submitted to Score Follower (autumn 2026 round).  
+Open to collaborations with ensembles, music research centres, and international residencies.

@@ -7,7 +7,9 @@
 (ql:quickload '(:cl-ppcre) :silent t)
 
 (defvar *index-path* "/tmp/contimbre_mp3_index.txt")
-(defvar *score-path* "/Users/ivan/Desktop/remnant/brownian_score.json")
+(defvar *score-path*
+  (merge-pathnames "brownian_score.json"
+    (make-pathname :directory (pathname-directory *load-pathname*))))
 (defvar *out-path*   "/tmp/contimbre_paths.json")
 
 (defun escape-json (s)

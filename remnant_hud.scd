@@ -185,7 +185,7 @@ SynthDef(\r_rec, {
 
 ~r_recStart = {
 	var ts   = Date.getDate.format("%Y%m%d_%H%M%S");
-	var path = Platform.userHomeDir ++ "/Desktop/remnant_" ++ ts ++ ".aiff";
+	var path = "/Volumes/disk 1/remnant_" ++ ts ++ ".aiff";
 	~r_recPath = path;
 	~r_recBuf  = Buffer.alloc(s, 65536, 2);
 	~r_recBuf.write(path, "AIFF", "float", 0, 0, true);

@@ -442,5 +442,121 @@ def main():
     print("Open remnant.rpp in Reaper, follow setup.txt for ePlayer.")
 
 
+# ─── Stereo downmix project ───────────────────────────────────────────────────
+# Matrice ottofonia → stereo (ITU-R BS.775 con decay spaziale)
+# CH1=0°, CH2=45°, CH3=90°, CH4=135°, CH5=180°, CH6=225°, CH7=270°, CH8=315°
+DOWNMIX_MATRIX = [
+    # (ch_name,   azimuth,  gain_L, gain_R,  pan_reaper)
+    ("CH1 0°",    0,        0.71,   0.71,    0.0   ),   # centro
+    ("CH2 45°",   45,       0.30,   0.90,    0.55  ),   # front R
+    ("CH3 90°",   90,       0.10,   0.70,    1.0   ),   # lat R
+    ("CH4 135°",  135,      0.20,   0.50,    0.85  ),   # rear R
+    ("CH5 180°",  180,      0.40,   0.40,    0.0   ),   # rear C
+    ("CH6 225°",  225,      0.50,   0.20,   -0.85  ),   # rear L
+    ("CH7 270°",  270,      0.70,   0.10,   -1.0   ),   # lat L
+    ("CH8 315°",  315,      0.90,   0.30,   -0.55  ),   # front L
+]
+
+DOWNMIX_RPP_PATH = os.path.join(SCORES_DIR, "remnant_downmix.rpp")
+
+def make_downmix_track(ch_idx, ch_name, gain_l, gain_r, pan, aiff_path, color):
+    """One mono audio track per octophonic channel, panned and gained for stereo."""
+    t_guid = guid()
+    i_guid = guid()
+    s_guid = guid()
+
+    # Reaper pan: -1.0 = full left, 0.0 = centre, +1.0 = full right
+    # Reaper pan value in RPP is -1..1
+    # Volume: average of L and R gain
+    vol = (gain_l + gain_r) / 2.0 * 1.41  # slight boost to compensate matrix attenuation
+
+    # Channel offset: ch_idx (0-based) selects the channel in the multichannel file
+    chan_offset = ch_idx  # CHANMODE offset
+
+    return t_guid, f"""  <TRACK {{{t_guid}}}
+    NAME "{ch_name}"
+    PEAKCOL {color}
+    BEAT -1
+    AUTOMODE 0
+    PANLAWFLAGS 3
+    VOLPAN {vol:.4f} {pan:.4f} -1 -1 1
+    MUTESOLO 0 0 0
+    IPHASE 0
+    PLAYOFFS 0 1
+    ISBUS 0 0
+    BUSCOMP 0 0 0 0 0
+    SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0 0
+    SEL 0
+    REC 0 0 1 0 0 0 0 0
+    VU 2
+    TRACKHEIGHT 60 0 0 0 0 0 0
+    NCHAN 2
+    FX 0
+    TRACKID {{{t_guid}}}
+    PERF 0
+    MIDIOUT -1
+    MAINSEND 1 0
+    <ITEM
+      POSITION 0
+      SNAPOFFS 0
+      LENGTH 3600
+      LOOP 0
+      ALLTAKES 0
+      FADEIN 1 0.01 0 1 0 0 0
+      FADEOUT 1 0.01 0 1 0 0 0
+      MUTE 0 0
+      SEL 1
+      IGUID {{{i_guid}}}
+      IID {ch_idx + 1}
+      NAME "{ch_name}"
+      VOLPAN 1 0 1 -1
+      SOFFS 0 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE {chan_offset + 2}
+      GUID {{{s_guid}}}
+      <SOURCE WAVE
+        FILE "{aiff_path}"
+      >
+    >
+  >"""
+
+
+def make_downmix_rpp(aiff_path, bpm=60):
+    """Generate a Reaper project with 8 mono tracks (one per octophonic channel)
+    each panned and gained according to the stereo downmix matrix."""
+
+    print(f"\nGenerating stereo downmix project...")
+    print(f"Source: {aiff_path}")
+
+    track_blocks = []
+    for i, (ch_name, azimuth, gain_l, gain_r, pan) in enumerate(DOWNMIX_MATRIX):
+        color = COLORS[i % len(COLORS)]
+        _, block = make_downmix_track(i, ch_name, gain_l, gain_r, pan, aiff_path, color)
+        track_blocks.append(block)
+        print(f"  {ch_name:12s}  L={gain_l:.2f}  R={gain_r:.2f}  pan={pan:+.2f}")
+
+    all_tracks = "\n".join(track_blocks)
+    rpp = make_rpp(all_tracks, bpm)
+
+    with open(DOWNMIX_RPP_PATH, "w", encoding="utf-8") as f:
+        f.write(rpp)
+
+    print(f"\n→ {DOWNMIX_RPP_PATH}")
+    print("Open in Reaper, render master as stereo WAV/AIFF.")
+    print("Suggested render: 48kHz 24bit, -14 LUFS target.")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--downmix":
+        # Usage: python3 generate_reaper.py --downmix /path/to/remnant.aiff
+        if len(sys.argv) < 3:
+            print("Usage: python3 generate_reaper.py --downmix /path/to/remnant_8ch.aiff")
+        else:
+            aiff_path = sys.argv[2]
+            if not os.path.exists(aiff_path):
+                print(f"ERROR: file not found: {aiff_path}")
+            else:
+                make_downmix_rpp(aiff_path)
+    else:
+        main()

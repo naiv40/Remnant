@@ -18,8 +18,8 @@
 (
 s.options.numOutputBusChannels = 8;
 s.waitForBoot {
-    ~scorePath = "~/Desktop/remnant/brownian_score.json".standardizePath;
-    ~lispPath  = "~/Desktop/remnant/contimbre_resolve_paths.lisp".standardizePath;
+    ~scorePath = (thisProcess.nowExecutingPath.dirname ++ "/brownian_score.json");
+    ~lispPath  = (thisProcess.nowExecutingPath.dirname ++ "/contimbre_resolve_paths.lisp");
     ~bufCache  = Dictionary.new;
     ~foaBus    = Bus.audio(s, 4);
     "Ready. Run Block 2.".postln;
@@ -61,11 +61,12 @@ SynthDef(\r_ct_foa2, { |bufnum, amp=0.7, azimuth=0, out=0, revTime=2.0, revMix=0
     Out.ar(out, [w, x, y, z]);
 }).add;
 
-SynthDef(\r_foa_decode_ct, { |in=0, out=0|
+SynthDef(\r_foa_decode_ct, { |in=0, out=0, hw=0|
     var bfmt, decoded;
     bfmt    = In.ar(in, 4);
     decoded = FoaDecode.ar(bfmt, ~decoder);
-    Out.ar(out, decoded);
+    Out.ar(out, decoded);   // → intermediate bus
+    Out.ar(hw, decoded);    // → hardware output
 }).add;
 
 SynthDef(\r_ct_rec, { |bufnum=0, in=0|
@@ -108,8 +109,11 @@ Routine {
 
 // ── Blocco 4 — Avvia decoder e funzioni playback ──────────────────────────────
 (
+// Bus intermedio 8ch tra decoder e rec — garantisce ordine di scrittura
+~outBus = Bus.audio(s, 8);
+
 ~decoderSynth = Synth(\r_foa_decode_ct,
-    [\in, ~foaBus.index, \out, 0],
+    [\in, ~foaBus.index, \out, ~outBus.index, \hw, 0],
     addAction: \addToTail);
 
 ~playEvent = { |ev|
@@ -167,11 +171,11 @@ Routine {
 ~recStart = { |path|
     var ts;
     ts   = Date.getDate.format("%Y%m%d_%H%M%S");
-    path = path ?? (Platform.userHomeDir ++ "/Desktop/remnant_" ++ ts ++ ".aiff");
+    path = path ?? ("/Volumes/disk 1/remnant_" ++ ts ++ ".aiff");
     ~recBuf  = Buffer.alloc(s, 65536, 8);
     ~recBuf.write(path, "AIFF", "float", 0, 0, true);
     ~recSynth = Synth(\r_ct_rec,
-        [\bufnum, ~recBuf.bufnum, \in, 0],
+        [\bufnum, ~recBuf.bufnum, \in, ~outBus.index],
         addAction: \addToTail);
     ("● REC → " ++ path).postln;
     ~recPath = path;
@@ -242,8 +246,7 @@ Routine {
 "~recStart.()           →  solo rec (senza playback)".postln;
 "~recStop.()            →  ferma rec".postln;
 )
-~recStart.()
-~playScore.()
+~playScore.(0)
 // ── Blocco 5 — Stop ──────────────────────────────────────────────────────────
 (
 ~decoderSynth.free;
