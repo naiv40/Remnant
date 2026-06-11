@@ -722,6 +722,11 @@ def home_layout():
                 "fontFamily": "monospace", "fontSize": "10px",
                 "color": "#BA7517", "minHeight": "14px", "marginBottom": "4px",
             }),
+            _btn("Export RTM for OpenMusic", "rtm-btn", outline=True),
+            html.Div(id="rtm-status", style={
+                "fontFamily": "monospace", "fontSize": "10px",
+                "color": "#9B59B6", "minHeight": "14px", "marginBottom": "4px",
+            }),
             html.Div(id="export-status", style={
                 "fontFamily": "monospace", "fontSize": "10px",
                 "color": "#5CB85C", "minHeight": "16px", "marginBottom": "16px",
@@ -854,6 +859,9 @@ app.layout = html.Div([
     html.Button(id="score-btn-root", n_clicks=0,
                 style={"display": "none"}),
     html.Button(id="ps-btn-root", n_clicks=0,
+                style={"display": "none"}),
+
+    html.Button(id="rtm-btn-root", n_clicks=0,
                 style={"display": "none"}),
 
     # Homepage — always in DOM, visible by default
@@ -2760,6 +2768,254 @@ def export_ps(n_clicks, store_data):
 
 
 @app.callback(
+    Output("rtm-status", "children"),
+    Input("rtm-btn-root", "n_clicks"),
+    prevent_initial_call=True,
+)
+def export_rtm(n_clicks):
+    """
+    Genera scores/rtm_ferneyhough.lisp per OpenMusic.
+
+    Albero RTM a tre livelli con frazioni esatte e BPM locali (Ferneyhough):
+    ─────────────────────────────────────────────────────────────────────────
+    Livello 1 — firma misura: (n d) con d ∈ {2,4,8,16}, n ∈ [1,16]
+                scelti in modo che il BPM locale ≈ BPM globale
+                (durata assoluta invariante)
+    Livello 2 — suddivisione: passi nella cella (pesi dalle distanze euclidee)
+    Livello 3 — sotto-suddivisione: guidata da tension_profile
+                tension ≤ 0.25 → nota intera
+                tension > 0.25 → suddivisione con distribuzione esponenziale
+                                  (preferenza denominatori dispari)
+
+    Tempo per misura nel formato OM:
+      :tempo (list '(1/4 bpm_globale)
+                   (list '((1 0) (1/4 bpm1 nil))
+                         '((2 0) (1/4 bpm2 nil)) ...))
+
+    Uso in OM 8:
+      Listener: (load "…/scores/rtm_ferneyhough.lisp")
+      Patch:    lispfunction (lambda () *rtm-gesto1*) → box voice
+    """
+    import json as _json, os as _os, math as _math
+    import numpy as _np
+
+    if not _os.path.exists(SCORE_PATH):
+        return "Generate score first."
+
+    with open(SCORE_PATH) as f:
+        score = _json.load(f)
+
+    gestures = score.get("gestures", [])
+    if not gestures:
+        return "No gestures in score."
+
+    N_CELLS     = 8
+    MAX_SUB_DEN = 8
+
+    def quantize_to_sum(values, target_sum):
+        total_v = sum(values)
+        if total_v == 0:
+            return [0] * len(values)
+        q = [max(1, round(v / total_v * target_sum)) if v > 0 else 0
+             for v in values]
+        diff = target_sum - sum(q)
+        if diff != 0:
+            nz = [i for i, v in enumerate(values) if v > 0]
+            if nz:
+                res = sorted(nz,
+                    key=lambda i: abs(values[i] / total_v * target_sum - q[i]),
+                    reverse=(diff > 0))
+                step = 1 if diff > 0 else -1
+                for i in res[:abs(diff)]:
+                    q[i] = max(1, q[i] + step)
+        return q
+
+    def best_time_sig(dur_sec, bpm_target, bpm_min=40, bpm_max=240):
+        """
+        Trova (n, d, bpm_local) con d ∈ {2,4,8,16}, n ∈ [1,16]
+        tale che bpm_local ∈ [bpm_min, bpm_max] e più vicino a bpm_target.
+        bpm_local = 240 * n / (dur_sec * d)
+        """
+        best = None
+        best_err = float('inf')
+        for d in [4, 8, 2, 16]:
+            for n in range(1, 17):
+                bpm_l = 240.0 * n / (dur_sec * d)
+                if bpm_min <= bpm_l <= bpm_max:
+                    err = abs(bpm_l - bpm_target)
+                    if err < best_err:
+                        best_err = err
+                        best = (n, d, round(bpm_l, 2))
+        if best is None:
+            for d in [4, 8, 2, 16]:
+                for n in range(1, 17):
+                    bpm_l = 240.0 * n / (dur_sec * d)
+                    err = abs(bpm_l - bpm_target)
+                    if err < best_err:
+                        best_err = err
+                        best = (n, d, round(bpm_l, 2))
+        return best
+
+    def tension_to_subdivision(tension, step_weight, rng):
+        """Livello 3: suddivisione interna guidata dalla tensione."""
+        if tension <= 0.25:
+            return str(step_weight)
+        candidates = [2, 3, 4, 5, 6, 7, 8]
+        wc = _np.array([
+            tension * (2.0 if c % 2 != 0 else 0.5)
+            + (1 - tension) * (0.5 if c % 2 != 0 else 1.5)
+            for c in candidates], dtype=float)
+        wc /= wc.sum()
+        n_sub = int(rng.choice(candidates, p=wc))
+        if tension < 0.5:
+            base = _np.ones(n_sub) + rng.uniform(0, 0.3, n_sub)
+        else:
+            base = rng.exponential(scale=tension * 2, size=n_sub) + 0.3
+        q = quantize_to_sum(list(base), n_sub)
+        if len(set(q)) == 1 and n_sub > 2:
+            q[int(rng.integers(0, n_sub))] += 1
+        return f"({step_weight} ({' '.join(str(v) for v in q)}))"
+
+    def build_rtm(step_dists_raw, tension_profile_raw, g_dur, bpm_global, gidx):
+        """
+        Costruisce l'albero RTM e il blocco :tempo per la voice OM.
+        Restituisce (tree_str, tempo_str).
+        """
+        raw = [d for d in step_dists_raw[1:]
+               if d is not None and not _math.isnan(d) and d > 0]
+        tp  = list(tension_profile_raw[1:]) if len(tension_profile_raw) > 1 else []
+        while len(tp) < len(raw):
+            tp.append(0.5)
+        if not raw:
+            raw = [1.0] * N_CELLS; tp = [0.5] * N_CELLS
+
+        total = sum(raw)
+        cum   = [0.0]
+        for d in raw:
+            cum.append(cum[-1] + d)
+
+        cells   = [[] for _ in range(N_CELLS)]
+        cell_tp = [[] for _ in range(N_CELLS)]
+        for i, (d, t) in enumerate(zip(raw, tp)):
+            mid = (cum[i] + cum[i + 1]) / 2
+            ci  = min(int(mid / total * N_CELLS), N_CELLS - 1)
+            cells[ci].append(d); cell_tp[ci].append(float(t))
+
+        rng = _np.random.default_rng(gidx * 1000 + 7)
+
+        measures   = []
+        tempo_list = []
+
+        for mi, (c, tensions) in enumerate(zip(cells, cell_tp)):
+            n_steps = len(c)
+            # Durata assoluta della cella
+            dur_sec = (sum(c) / total * g_dur) if c else 0.0
+
+            if not c or dur_sec < 0.001:
+                measures.append("((1 4) (-1))")
+                tempo_list.append((mi + 1, bpm_global))
+                continue
+
+            # Firma temporale e BPM locale
+            sig_n, sig_d, bpm_l = best_time_sig(dur_sec, bpm_global)
+            tempo_list.append((mi + 1, bpm_l))
+
+            # Livello 2: pesi dei passi
+            sw = quantize_to_sum(c, min(n_steps, MAX_SUB_DEN)) if n_steps > 1 else [1]
+
+            # Livello 3: suddivisione interna
+            parts = [tension_to_subdivision(t, s, rng)
+                     for s, t in zip(sw, tensions)]
+
+            measures.append(f"(({sig_n} {sig_d}) ({' '.join(parts)}))")
+
+        measures_str = "\n   ".join(measures)
+        tree_str = f"'(? (\n   {measures_str}))"
+
+        # Formato tempo OM: (list '(1/4 bpm0) (list '((1 0) (1/4 bpm1 nil)) ...))
+        first_bpm = tempo_list[0][1]
+        changes = []
+        for meas_idx, bpm_l in tempo_list:
+            changes.append(f"'(({meas_idx} 0) (1/4 {bpm_l} nil))")
+        sep = "\n               "
+        changes_str = sep.join(changes)
+        tempo_str = (
+            "(list '(1/4 " + str(first_bpm) + ")\n"
+            + "         (list " + changes_str + "))"
+        )
+
+        return tree_str, tempo_str
+
+    bpm_global = score.get("bpm", 60)
+
+    lisp_lines = [
+        ";;; rtm_ferneyhough.lisp — Remnant",
+        ";;; Alberi ritmici a tre livelli · frazioni esatte · BPM locali",
+        ";;; Livello 1: firma (n d) per durata assoluta invariante",
+        ";;; Livello 2: passi nella misura (pesi dalle distanze euclidee)",
+        ";;; Livello 3: suddivisione interna (tension_profile)",
+        ";;;",
+        ";;; Uso in OM 8:",
+        ";;;   1. Listener: (load \"percorso/rtm_ferneyhough.lisp\")",
+        ";;;   2. Patch: lispfunction (lambda () *rtm-gesto1*) → box voice",
+        "(in-package :om)",
+        "",
+    ]
+
+    varnames = []
+
+    for g in gestures:
+        g_idx           = g["index"]
+        step_dists      = g.get("step_dists", [])
+        tension_profile = g.get("tension_profile", [])
+        t_start         = g.get("t_start", 0.0)
+        t_end           = g.get("t_end", 0.0)
+        g_dur           = max(t_end - t_start, 0.001)
+        bpm_local_nom   = g.get("bpm_local", bpm_global)
+        varname         = f"*rtm-gesto{g_idx + 1}*"
+        varnames.append(varname)
+
+        tree_str, tempo_str = build_rtm(
+            step_dists, tension_profile, g_dur, bpm_local_nom, g_idx)
+
+        n_passi = len([d for d in step_dists[1:]
+                       if d and not _math.isnan(d) and d > 0])
+
+        lisp_lines.append(
+            f";;; gesto {g_idx+1} — {g_dur:.1f}s · {n_passi} passi · "
+            f"dynamic_form={g.get('dynamic_form', '—')} · "
+            f"tension={g.get('tension', 0):.2f}"
+        )
+        lisp_lines.append(f"(defparameter {varname}")
+        lisp_lines.append(f"  (make-instance 'voice")
+        lisp_lines.append(f"    :tree {tree_str}")
+        lisp_lines.append(f"    :tempo {tempo_str}))")
+        lisp_lines.append("")
+
+    voices_str = " ".join(varnames)
+    lisp_lines.append(";;; Tutte le voci come POLY")
+    lisp_lines.append(f"(defparameter *rtm-all*")
+    lisp_lines.append(f"  (make-instance 'poly")
+    lisp_lines.append(f"    :voices (list {voices_str})))")
+    lisp_lines.append("")
+    lisp_lines.append('(format t "~%[rtm_ferneyhough] caricato~%")')
+    lisp_lines.append(
+        f'(format t " {len(gestures)} gesti → *rtm-gesto1* … *rtm-gesto{len(gestures)}*~%")')
+    lisp_lines.append('(format t " *rtm-all* = POLY~%")')
+
+    out_path = _os.path.join(BASE_DIR, "scores", "rtm_ferneyhough.lisp")
+    _os.makedirs(_os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w") as f:
+        f.write("\n".join(lisp_lines))
+
+    n_passi_tot = sum(
+        len([d for d in g.get("step_dists", [])[1:]
+             if d and not _math.isnan(d) and d > 0])
+        for g in gestures)
+    return f"✓ scores/rtm_ferneyhough.lisp · {len(gestures)} gesti · {n_passi_tot} passi"
+
+
+@app.callback(
     Output("eplayer-status", "children"),
     Input("eplayer-btn",     "n_clicks"),
     State("path-store",      "data"),
@@ -3033,6 +3289,15 @@ app.clientside_callback(
     Input("ps-btn", "n_clicks"),
     prevent_initial_call=True,
 )
+
+
+app.clientside_callback(
+    "function(n) { return n || 0; }",
+    Output("rtm-btn-root", "n_clicks"),
+    Input("rtm-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+
 
 @app.server.route('/open_contimbre', methods=['GET'])
 def open_contimbre_route():

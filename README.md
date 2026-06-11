@@ -135,8 +135,9 @@ Alternatively, select instrument families manually and click **Apply filter** �
 4. Click **Generate composition**
 5. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
 6. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
-7. (Optional) Load a **target audio file** — the Brownian path is attracted toward its UMAP coordinates instead of the Dynamic Form centroid
-8. Click **Export PS notation** — generates `brownian_notation.ps` with ConTimbre graphic notation via SBCL
+7. (Optional) Click **Export RTM for OpenMusic** — generates `scores/rtm_ferneyhough.lisp` with 3-level hierarchical rhythm trees (exact time signatures + per-measure BPM + tension-driven sub-subdivision); load in OM 8 Listener and connect to `voice` boxes
+8. (Optional) Load a **target audio file** — the Brownian path is attracted toward its UMAP coordinates instead of the Dynamic Form centroid
+9. Click **Export PS notation** — generates `brownian_notation.ps` with ConTimbre graphic notation via SBCL
 
 ### Live performance (remnant_hud.scd)
 All fields play simultaneously as a single body. The HUD is the only live interface.
@@ -232,6 +233,28 @@ Two mechanisms prevent timbral homogeneity across the composition:
 ### Pulse grid
 The pulse grid encodes the Brownian inter-step distances as binary rational fractions. Each cell carries its own local BPM, derived from the per-step tension value: `BPM = 40 + tension × 80`, snapped to `[40, 48, 60, 72, 80, 96, 120]`. High tension produces a faster local pulse; low tension a slower one. The absolute durations in seconds remain invariant — the BPM is a gestural and interpretive indication, not a temporal constraint.
 
+### RTM export for OpenMusic
+
+**Export RTM for OpenMusic** generates `scores/rtm_ferneyhough.lisp` — a three-level hierarchical rhythm tree for each field in Ferneyhough's proportional notation system.
+
+**Level 1 — Time signature:** each Brownian cell becomes a measure `(n d)` with `d ∈ {2, 4, 8, 16}`, `n ∈ [1, 16]`. Signature is chosen so the local BPM is in [40, 240] and closest to the gesture's global BPM, keeping absolute durations invariant:
+
+```
+bpm_local = 240 × n / (cell_dur_sec × d)
+cell_dur  = (cell_dist / total_dist) × gesture_dur_sec
+```
+
+Cells are partitioned by cumulative Euclidean distance threshold (midpoint rule). Empty cells → rest `(-1)`.
+
+**Level 2 — Measure subdivision:** steps within a cell weighted by Euclidean distance, quantised with denominator ≤ 8.
+
+**Level 3 — Sub-subdivision** from `tension_profile`:
+- tension ≤ 0.25 → whole note
+- tension 0.25–0.50 → 2–5 near-uniform subdivisions
+- tension > 0.50 → 3–8 subdivisions, exponential distribution, odd denominators preferred (3, 5, 7)
+
+Output: native OpenMusic 8 `voice` objects with per-measure tempo in `format-omtempo` format. Load in OM 8 Listener: `(load "…/scores/rtm_ferneyhough.lisp")`, then use `(lambda () *rtm-gesto1*)` in a Lisp Function box connected to a `voice` box.
+
 ### Dynamic Form → Lachenmann mapping
 
 | Direction | Low tension (< 0.7) | High tension (≥ 0.7) |
@@ -273,6 +296,7 @@ The pulse grid encodes the Brownian inter-step distances as binary rational frac
 | Timbral tension | Lerdahl timbral hierarchy | Tension profile + distance threshold |
 | Timbral prolongation | McAdams prolongational hierarchy | IR categories + gesture sequencing |
 | Pulse grid | Proportional notation | Brownian inter-step distances → binary rational fractions, local BPM per cell from per-step tension |
+| RTM export | Ferneyhough proportional notation | 3-level hierarchical rhythm tree: exact time signatures (n/d, d∈{2,4,8,16}) from Euclidean distances, per-measure BPM for absolute duration invariance, Level 3 sub-subdivision from tension_profile |
 | Temporal consciousness | Husserl, *lebendige Gegenwart* | Living present composite in SC tension bus |
 | Target orchestration | Cella, Orchidea / MaxOrch | Audio target → UMAP projection → Brownian attractor |
 
@@ -342,7 +366,8 @@ remnant/
     ├── brownian_score.json        # (generated — not versioned)
     ├── umap_contimbre_coords.csv  # (generated — not versioned)
     ├── umap_sol_coords.csv        # (generated — not versioned)
-    └── modes_cache.json           # (generated — not versioned)
+    ├── modes_cache.json           # (generated — not versioned)
+    └── rtm_ferneyhough.lisp       # (generated — not versioned)
 ```
 
 ---
