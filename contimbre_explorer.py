@@ -8,6 +8,7 @@ Launch: python3 contimbre_explorer.py
 
 import re
 import json
+import pickle
 import dash
 from dash import dcc, html, Input, Output, State
 import plotly.graph_objects as go
@@ -17,6 +18,61 @@ import subprocess
 import os
 from sklearn.preprocessing import StandardScaler
 import umap as umap_lib
+
+# ── Target audio → coordinata UMAP ───────────────────────────────────────────
+def project_audio_to_umap(audio_path, script_dir):
+    """
+    Estrae le feature spettrali da un file audio e le proietta
+    nel piano UMAP ConTimbre esistente usando il modello salvato.
+    Richiede: umap_model.pkl e umap_scaler.pkl nella stessa cartella.
+    Ritorna: (x, y) coordinata UMAP o None se fallisce.
+    """
+    model_path  = os.path.join(script_dir, "umap_model.pkl")
+    scaler_path = os.path.join(script_dir, "umap_scaler.pkl")
+    if not os.path.exists(model_path) or not os.path.exists(scaler_path):
+        print("  [target] modello UMAP non trovato — esegui prima umap_full.py")
+        return None
+    try:
+        import librosa
+        y_audio, sr = librosa.load(audio_path, sr=22050, mono=True, duration=10.0)
+        # Feature compatibili con umap_full.py
+        # features = ["pitch", "dynamic_num", "spectral_complexity", "spectral_center", "duration", "absolute_intensity"]
+        pitches, magnitudes = librosa.piptrack(y=y_audio, sr=sr)
+        pitch_val = float(np.median(pitches[pitches > 0])) if np.any(pitches > 0) else 0.0
+        # Converti Hz → MIDI
+        pitch_midi = float(69 + 12 * np.log2(max(pitch_val, 1) / 440)) if pitch_val > 20 else 60.0
+        spec = np.abs(librosa.stft(y_audio))
+        freqs = librosa.fft_frequencies(sr=sr)
+        spec_mean = np.mean(spec, axis=1)
+        spec_mean_sum = np.sum(spec_mean) + 1e-10
+        spec_center  = float(np.sum(freqs * spec_mean) / spec_mean_sum)
+        spec_complex = float(np.std(spec) / (np.mean(spec) + 1e-10))
+        rms          = float(np.sqrt(np.mean(y_audio**2)))
+        duration     = float(len(y_audio) / sr)
+        # dynamic_num: mappa rms → 1–8
+        dyn_num = float(np.clip(int(rms * 80), 1, 8))
+        feat_vec = np.array([[pitch_midi, dyn_num, spec_complex, spec_center, duration, rms]])
+        with open(scaler_path, "rb") as f:
+            scaler, weights, feat_names = pickle.load(f)
+        # Costruisce il vettore feature nell'ordine esatto del modello
+        feat_dict = {
+            "pitch":               pitch_midi,
+            "dynamic_num":         dyn_num,
+            "spectral_complexity": spec_complex,
+            "spectral_center":     spec_center,
+            "duration":            duration,
+            "absolute_intensity":  rms,
+        }
+        feat_vec = np.array([[feat_dict.get(f, 0.0) for f in feat_names]])
+        with open(model_path, "rb") as f:
+            reducer = pickle.load(f)
+        coord = reducer.transform(feat_std)
+        x, y  = float(coord[0, 0]), float(coord[0, 1])
+        print(f"  [target] audio proiettato → ({x:.3f}, {y:.3f})")
+        return (x, y)
+    except Exception as e:
+        print(f"  [target] errore proiezione: {e}")
+        return None
 
 # ─── Data ───────────────────────────────────────────────────────────────────
 
@@ -369,6 +425,34 @@ GESTURE_PALETTE = [
     "#993C1D","#0C447C","#085041","#633806","#3C3489",
 ]
 
+# ─── Figura iniziale UMAP ───────────────────────────────────────────────────
+def _build_initial_umap_fig():
+    fig = go.Figure()
+    for fam, grp in df_full.groupby("family"):
+        col = FAMILY_COLORS.get(fam, "#ccc")
+        fig.add_trace(go.Scattergl(
+            x=grp["x"], y=grp["y"], mode="markers",
+            marker=dict(size=4, color=col, opacity=0.2),
+            name=fam, text=grp["id"],
+            hovertemplate="<b>%{text}</b><extra></extra>",
+            legendgroup=fam,
+        ))
+    fig.update_layout(
+        paper_bgcolor="#fafafa", plot_bgcolor="#fafafa",
+        font=dict(family="Courier New", size=10, color="#555"),
+        margin=dict(l=20, r=20, t=20, b=20),
+        legend=dict(orientation="v", x=1.01, y=1,
+                    font=dict(size=9), itemsizing="constant"),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        hovermode="closest",
+    )
+    return fig
+
+print("Costruzione mappa UMAP iniziale...")
+INITIAL_UMAP_FIG = _build_initial_umap_fig()
+print(f"Mappa pronta — {len(df_full)} punti.")
+
 # ─── App ────────────────────────────────────────────────────────────────────
 
 app = dash.Dash(__name__, title="Remnant",
@@ -536,6 +620,48 @@ def home_layout():
 
             _hr(),
 
+            # ── Target audio (Orchidea-style attractor) ──────────────────
+            _label("Target audio"),
+            dcc.Upload(
+                id="target-audio-upload",
+                children=html.Div([
+                    html.Button("↑ carica file audio", style={
+                        "width": "100%", "padding": "8px",
+                        "background": "none", "color": "#555",
+                        "border": "1px dashed #ccc", "borderRadius": "3px",
+                        "fontFamily": "monospace", "fontSize": "9px",
+                        "letterSpacing": "1px", "cursor": "pointer",
+                        "marginBottom": "4px",
+                    })
+                ]),
+                accept="audio/*",
+                multiple=False,
+                style={"marginBottom": "4px"},
+            ),
+            dcc.Input(id="target-audio-path", type="text",
+                placeholder="oppure incolla il path",
+                debounce=True,
+                style={"width": "100%", "fontFamily": "monospace",
+                       "fontSize": "9px", "marginBottom": "4px",
+                       "padding": "4px", "boxSizing": "border-box",
+                       "border": "1px solid #ccc", "borderRadius": "3px"}),
+            html.Button("✕ rimuovi target", id="target-clear-btn", n_clicks=0, style={
+                "width": "100%", "padding": "6px",
+                "background": "none", "color": "#aaa",
+                "border": "1px solid #ddd", "borderRadius": "3px",
+                "fontFamily": "monospace", "fontSize": "9px",
+                "letterSpacing": "1px", "cursor": "pointer",
+                "marginBottom": "4px",
+            }),
+            html.Div(id="target-audio-status", style={
+                "fontFamily": "monospace", "fontSize": "10px",
+                "color": "#1D9E75", "minHeight": "14px", "marginBottom": "4px",
+            }),
+            # Store coordinata UMAP del target
+            dcc.Store(id="target-umap-coord", data=None),
+
+            _hr(),
+
             # Filtri strumenti — dropdown multi-select dinamico
             _label("Instruments"),
             dcc.Dropdown(
@@ -590,11 +716,6 @@ def home_layout():
             html.Div(id="score-status", style={
                 "fontFamily": "monospace", "fontSize": "10px",
                 "color": "#378ADD", "minHeight": "14px", "marginBottom": "4px",
-            }),
-            _btn("Export HTML score", "html-score-btn", outline=True),
-            html.Div(id="html-score-status", style={
-                "fontFamily": "monospace", "fontSize": "10px",
-                "color": "#1D9E75", "minHeight": "14px", "marginBottom": "4px",
             }),
             _btn("Export PS notation", "ps-btn", outline=True),
             html.Div(id="ps-status", style={
@@ -669,6 +790,7 @@ def home_layout():
         # ── Map + timeline ──
         html.Div([
             dcc.Graph(id="umap-graph", config={"displayModeBar": False},
+                      figure=INITIAL_UMAP_FIG,
                       style={"height": "calc(100% - 90px)"}),
             html.Div(id="timeline", style={
                 "height": "70px", "margin": "8px 16px 0",
@@ -730,8 +852,6 @@ app.layout = html.Div([
     dcc.Store(id="score-ready", data=False),
     # Bottone trigger nel root per generate_score
     html.Button(id="score-btn-root", n_clicks=0,
-                style={"display": "none"}),
-    html.Button(id="html-score-btn-root", n_clicks=0,
                 style={"display": "none"}),
     html.Button(id="ps-btn-root", n_clicks=0,
                 style={"display": "none"}),
@@ -920,7 +1040,8 @@ def path_to_sequence(path, df_active, threshold=0.0, spectral_diversity=0.15,
 
 def generate_composition(n_gestures, steps, init_vol, drift_noise, duration_sec,
                          df_active, threshold=0.0, dynamic_form_sequence=None,
-                         attraction=0.35, spectral_diversity=0.15):
+                         attraction=0.35, spectral_diversity=0.15,
+                         target_umap_coord=None):
     """Generate composition using Dynamic Forms (Thoresen ch. 8) as directional engine.
 
     For each field:
@@ -944,8 +1065,11 @@ def generate_composition(n_gestures, steps, init_vol, drift_noise, duration_sec,
         # Presence → halved volatility
         eff_vol = vol * 0.5 if direction == "Presence" else vol
 
-        # Attractor UMAP dalla direzione
-        attractor = compute_dynamic_form_attractor(direction, df_active)
+        # Attractor UMAP: target audio ha precedenza sul centroide Dynamic Form
+        if target_umap_coord is not None:
+            attractor = tuple(target_umap_coord)
+        else:
+            attractor = compute_dynamic_form_attractor(direction, df_active)
 
         path = brownian_path(steps, eff_vol, dx, dy, xmin, xmax, ymin, ymax,
                              start=start, attractor=attractor, attraction=attraction)
@@ -1813,12 +1937,13 @@ def update_dynamic_form_dropdowns(n_gestures, df_store):
     State("spectral-div-slider", "value"),
     State({"type": "dynform-drop",   "index":  dash.ALL}, "value"),
     State("dynamic-form-store",  "data"),
+    State("target-umap-coord",   "data"),
     prevent_initial_call=True,
 )
 def generate(n_clicks, sound_image_store, df_store,
              duration, n_gestures, steps, init_vol, drift_noise,
              threshold, attraction, spectral_div, df_values,
-             dynform_store):
+             dynform_store, target_umap_coord):
     # Usa sound-image-store (da Refine/Sound image) se disponibile,
     # altrimenti df-store, altrimenti df_full
     active_store = sound_image_store or df_store
@@ -1843,6 +1968,7 @@ def generate(n_clicks, sound_image_store, df_store,
         dynamic_form_sequence=dynamic_form_sequence,
         attraction=attraction or 0.35,
         spectral_diversity=spectral_div if spectral_div is not None else 0.15,
+        target_umap_coord=target_umap_coord,
     )
 
     fig = go.Figure()
@@ -2395,9 +2521,12 @@ def _build_score_figure(sel_idx, gestures_data, df_store, duration):
         pitch_val = float(ev.get("pitch", 0) or 0)
         dyn_val   = ev.get("dynamic", "") or ""
         if pitch_val and pitch_val > 0:
-            # 5 linee del rigo: spaziate di 2.5° sopra l'azimuth
-            STAFF_STEP = 2.5
-            STAFF_Y0   = azimuth + 6
+            STAFF_STEP = 2.0
+            # Stagger sopra/sotto per evitare sovrapposizioni
+            same_az = sum(1 for e in events[:ev_idx] if abs(e.get("azimuth",0) - azimuth) < 5)
+            STAFF_DIR = 1 if same_az % 2 == 0 else -1
+            STAFF_OFF = 6 if STAFF_DIR == 1 else -(6 + 5*STAFF_STEP)
+            STAFF_Y0  = azimuth + STAFF_OFF
             for li in range(5):
                 ly = STAFF_Y0 + li * STAFF_STEP
                 fig.add_shape(type="line",
@@ -2529,31 +2658,6 @@ def generate_score(n_clicks, gestures_data, df_store, duration, dynform_store):
     n_fields = len(score["gestures"])
     total    = sum(len(g["events"]) for g in score["gestures"])
     return True, f"✓ Score saved — {n_fields} fields · {total} events"
-
-
-@app.callback(
-    Output("html-score-status", "children"),
-    Input("html-score-btn-root", "n_clicks"),
-    prevent_initial_call=True,
-)
-def export_html_score(n_clicks):
-    import subprocess, os as _os
-    score_path = SCORE_PATH
-    if not _os.path.exists(score_path):
-        return "Generate score first."
-    script = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "partitura_html.py")
-    if not _os.path.exists(script):
-        return "partitura_html.py not found in same folder."
-    try:
-        result = subprocess.run(
-            ["python3", script],
-            capture_output=True, text=True, timeout=30
-        )
-        if result.returncode == 0:
-            return "✓ partitura_remnant.html → Desktop"
-        return f"Error: {result.stderr[:80]}"
-    except Exception as e:
-        return f"Error: {str(e)[:80]}"
 
 
 @app.callback(
@@ -2788,6 +2892,55 @@ if os.path.exists(_CT_HTML_ROOT):
                     _INSTR_HTML_MAP[_ci.lower()] = _chp
 print(f"  ConTimbre HTML map: {len(_INSTR_HTML_MAP)} strumenti")
 
+# ── Target audio → coordinata UMAP ──────────────────────────────────────────
+@app.callback(
+    Output("target-umap-coord",   "data",     allow_duplicate=True),
+    Output("target-audio-status", "children", allow_duplicate=True),
+    Output("target-audio-path",   "value",    allow_duplicate=True),
+    Input("target-clear-btn",     "n_clicks"),
+    prevent_initial_call=True,
+)
+def clear_target_audio(n_clicks):
+    return None, "— target rimosso", ""
+
+
+@app.callback(
+    Output("target-audio-path", "value"),
+    Input("target-audio-upload", "contents"),
+    State("target-audio-upload", "filename"),
+    prevent_initial_call=True,
+)
+def save_uploaded_audio(contents, filename):
+    """Salva il file caricato via Upload in /tmp e restituisce il path."""
+    if not contents or not filename:
+        raise dash.exceptions.PreventUpdate
+    import base64, tempfile
+    header, data = contents.split(",", 1)
+    tmp_path = os.path.join(tempfile.gettempdir(), filename)
+    with open(tmp_path, "wb") as f:
+        f.write(base64.b64decode(data))
+    print(f"  [target] file salvato in: {tmp_path}")
+    return tmp_path
+
+
+@app.callback(
+    Output("target-umap-coord",   "data"),
+    Output("target-audio-status", "children"),
+    Input("target-audio-path",    "value"),
+    prevent_initial_call=True,
+)
+def project_target_audio(path):
+    if not path or not path.strip():
+        return None, ""
+    path = path.strip()
+    if not os.path.exists(path):
+        return None, f"✗ file non trovato"
+    coord = project_audio_to_umap(path, SCRIPT_DIR)
+    if coord is None:
+        return None, "✗ proiezione fallita (vedi terminale)"
+    return list(coord), f"✓ target ({coord[0]:.2f}, {coord[1]:.2f})"
+
+
 # ── Saved scores ────────────────────────────────────────────────────────────
 
 def _list_scores():
@@ -2873,12 +3026,6 @@ app.clientside_callback(
     prevent_initial_call=True,
 )
 
-app.clientside_callback(
-    "function(n) { return n || 0; }",
-    Output("html-score-btn-root", "n_clicks"),
-    Input("html-score-btn", "n_clicks"),
-    prevent_initial_call=True,
-)
 
 app.clientside_callback(
     "function(n) { return n || 0; }",

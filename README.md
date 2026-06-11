@@ -34,6 +34,7 @@ umap_contimbre_coords.csv  /  umap_sol_coords.csv
         ├─ Export .cOrc / .cePlayerOrc  (SBCL)
         ├─ Export PS notation  (ConTimbre graphic notation via SBCL)
         ├─ Click-to-open ConTimbre HTML (instrument notation via browser)
+        ├─ Target audio attractor (Orchidea-style: audio → UMAP coord → Brownian attractor)
         └─ brownian_score.json  →  SuperCollider
                 ├─ remnant_sc.scd      (boot, buses, groups, synths)
                 ├─ remnant_conv.scd    (convolution engine, IR generation)
@@ -51,7 +52,7 @@ Demo / development playback (no orchestra):
 
 ### Python
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt  # includes librosa for target audio projection
 ```
 
 ### SuperCollider
@@ -91,7 +92,7 @@ Writes `sol_coords_input.tsv` in the project folder.
 
 ### 2. Compute UMAP coordinates
 ```bash
-python3 umap_full.py
+python3 umap_full.py  # also saves umap_model.pkl + umap_scaler.pkl for target audio projection
 ```
 Generates `umap_contimbre_coords.csv` and/or `umap_sol_coords.csv`.
 
@@ -134,7 +135,8 @@ Alternatively, select instrument families manually and click **Apply filter** �
 4. Click **Generate composition**
 5. Click **Generate score** — writes `brownian_score.json` and opens the graphic score
 6. Click **Export for ePlayer** — generates `contimbre_remnant.cePlayerOrc`
-7. Click **Export PS notation** — generates `brownian_notation.ps` with ConTimbre graphic notation via SBCL
+7. (Optional) Load a **target audio file** — the Brownian path is attracted toward its UMAP coordinates instead of the Dynamic Form centroid
+8. Click **Export PS notation** — generates `brownian_notation.ps` with ConTimbre graphic notation via SBCL
 
 ### Live performance (remnant_hud.scd)
 All fields play simultaneously as a single body. The HUD is the only live interface.
@@ -257,7 +259,8 @@ The pulse grid encodes the Brownian inter-step distances as binary rational frac
 | Stochastic drift | 0.0–2.0 | Parameter evolution rate |
 | Distance threshold | 0.0–5.0 | Lerdahl timbral tension gate |
 | Spectral diversity | 0.0–0.50 | Min centroid difference between events |
-| Attraction intensity | 0.0–1.0 | Pull toward Dynamic Form attractor |
+| Attraction intensity | 0.0–1.0 | Pull toward Dynamic Form centroid or target audio coord |
+| Target audio | .wav / .aiff | Replaces Dynamic Form centroid as attractor; upload or paste path |
 
 ---
 
@@ -271,6 +274,7 @@ The pulse grid encodes the Brownian inter-step distances as binary rational frac
 | Timbral prolongation | McAdams prolongational hierarchy | IR categories + gesture sequencing |
 | Pulse grid | Proportional notation | Brownian inter-step distances → binary rational fractions, local BPM per cell from per-step tension |
 | Temporal consciousness | Husserl, *lebendige Gegenwart* | Living present composite in SC tension bus |
+| Target orchestration | Cella, Orchidea / MaxOrch | Audio target → UMAP projection → Brownian attractor |
 
 ### Living present (Husserl)
 
@@ -315,7 +319,9 @@ The PS score (`brownian_notation.ps`) contains ConTimbre's own graphic notation 
 ```
 remnant/
 ├── contimbre_explorer.py          # Dash — composition, score, export
-├── umap_full.py                   # UMAP pipeline (McAdams weights)
+├── umap_full.py                   # UMAP pipeline (McAdams weights) — saves umap_model.pkl
+├── umap_model.pkl                # Serialised UMAP reducer for target audio projection
+├── umap_scaler.pkl               # Serialised scaler for target audio projection
 ├── sol_to_tsv_2.py                # SOL HQ → TSV pipeline
 ├── generate_reaper.py             # Reaper project generator
 ├── generate_midi.py               # MIDI file generator
@@ -338,6 +344,20 @@ remnant/
     ├── umap_sol_coords.csv        # (generated — not versioned)
     └── modes_cache.json           # (generated — not versioned)
 ```
+
+---
+
+## Target audio (Orchidea-style)
+
+Any `.wav` or `.aiff` file can be loaded as a Brownian attractor. The system extracts spectral features with librosa, applies McAdams weighting, and projects into the existing ConTimbre UMAP space:
+
+```
+audio file → librosa features → umap_scaler → umap_model.transform() → (x, y) → Brownian attractor
+```
+
+- **Load:** click `↑ carica file audio` or paste a path in the text field
+- **Remove:** click `✕ rimuovi target` — reverts to Dynamic Form centroid
+- **Requirement:** run `umap_full.py` once to generate `umap_model.pkl` and `umap_scaler.pkl`
 
 ---
 
